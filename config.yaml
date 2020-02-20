@@ -1,0 +1,6 @@
+#This file have to be checked before each run!!!
+
+#Snakemake will create result files here
+Result_Repository: "/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/"
+Project_folder: "191217_NB501048_0665_AHWM32AFXY_1576689602"
+Samplesheet_Location: "samplesheet.csv"
