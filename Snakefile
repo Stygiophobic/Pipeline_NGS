@@ -31,7 +31,7 @@ rule all:
         if (SAMPLEFILE_NUMBER>SAMPLE_NUMBER):
             print("WARNING:More samples in samplefile than fastq directory.Snakemake will stop.Please verify the samplefile.\n")
 
-        shell("echo 'LELZ'")
-
-
+        #Controlling presence of the hg19 reference genome
+        shell("if [ ! -d REF_HG19 ]  ;then mkdir -p REF_HG19; echo 'Recuperation de HG19' ; wget -P REF_HG19/ http://hgdownload.cse.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz  ;fi ")
+        #shell("rm -r REF_HG19")
 
