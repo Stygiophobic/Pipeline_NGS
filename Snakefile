@@ -13,37 +13,49 @@ samplefile=config['Samplesheet_Location']
 table_samplefile=pd.read_csv(samplefile,sep=";",header=0,)  
 SAMPLE_LIST=list(table_samplefile['SAMPLE'])
 
+#Check number of sample in the fastq folder
+SAMPLE_NUMBER=len(os.listdir(result_repository + fastq_repository_name))/2
+SAMPLEFILE_NUMBER=len(SAMPLE_LIST)
+
+
+
+print("\nPIPELINE INFORMATION:\n")
+if (SAMPLEFILE_NUMBER<SAMPLE_NUMBER):
+    print("WARNING:More samples in fastq directory than samplefile. Please verify the samplefile.\n")
+if (SAMPLEFILE_NUMBER>SAMPLE_NUMBER):
+    print("WARNING:More samples in samplefile than fastq directory.Snakemake will stop.Please verify the samplefile.\n")
+
+
 #Expected files at the end of the analysis.
-rule all:
+rule output_pipeline:
     input:
-        hg19_ref = "REF_HG19/hg19.fa" ,
-        raw_fastq_R1 = expand(result_repository + fastq_repository_name + "/{sample}_R1.fastq.gz",sample=SAMPLE_LIST),
-        raw_fastq_R2 = expand(result_repository + fastq_repository_name + "/{sample}_R2.fastq.gz",sample=SAMPLE_LIST) ,
+        #hg19_ref = "REF_HG19/hg19.fa" ,
+        #fastq_R1 = expand(result_repository + "FASTQ/{sample}_R1.fastq.gz",sample=SAMPLE_LIST),
+        #fastq_R2 = expand(result_repository + "FASTQ/{sample}_R2.fastq.gz",sample=SAMPLE_LIST),
+        unzip_fastq_R1 = expand(result_repository + "FASTQ/{sample}_R1.fastq",sample=SAMPLE_LIST),
+        unzip_fastq_R2 = expand(result_repository + "FASTQ/{sample}_R2.fastq",sample=SAMPLE_LIST),           
         database = expand("REF_HG19/hg19.fa.{ext}", ext=["nhr", "nin", "nsq"]),
         bitmask = "REF_HG19/hg19.bitmask",
-        srprism = expand("REF_HG19/hg19.srprism.{subfile}",subfile=['amp','idx','imp','map','mpm','rmp','ss','ssa','ssd'])
+        srprism = expand("REF_HG19/hg19.srprism.{subfile}",subfile=['amp','idx','imp','map','rmp','ss','ssa','ssd'])
 
 
 #control samplefile and fastq's repository contents. Copy procceed fastq.
-rule check_samplefile:
+rule fastq_copy:
     message:
         "Checking samplefile, and decompress fastq."  
     input:
-        raw_fastq_R1 = expand(result_repository + fastq_repository_name + "/{sample}_R1.fastq.gz",sample=SAMPLE_LIST),
-        raw_fastq_R2 = expand(result_repository + fastq_repository_name + "/{sample}_R2.fastq.gz",sample=SAMPLE_LIST)
+        raw_fastq_R1 = result_repository + fastq_repository_name + "/{sample}_R1.fastq.gz",
+        raw_fastq_R2 = result_repository + fastq_repository_name + "/{sample}_R2.fastq.gz",
+    params:
+        sample=SAMPLE_LIST
     output:
         fastq_R1 = result_repository + "FASTQ/{sample}_R1.fastq.gz",
         fastq_R2 = result_repository + "FASTQ/{sample}_R2.fastq.gz"    
-    run:
-        #Check number of sample in the fastq folder
-        SAMPLE_NUMBER=len(os.listdir(result_repository + fastq_repository_name))/2
-        SAMPLEFILE_NUMBER=len(SAMPLE_LIST)
-        if (SAMPLEFILE_NUMBER<SAMPLE_NUMBER):
-            print("WARNING:More samples in fastq directory than samplefile. Please verify the samplefile.\n")
-        if (SAMPLEFILE_NUMBER>SAMPLE_NUMBER):
-            print("WARNING:More samples in samplefile than fastq directory.Snakemake will stop.Please verify the samplefile.\n")
-        shell("cp {input.raw_fastq_R1} > {output.fastq_R1} ")
-        shell("cp {input.raw_fastq_R2} > {output.fastq_R2} ")
+    shell:
+        """
+        cp {input.raw_fastq_R1}  {output.fastq_R1}
+        cp {input.raw_fastq_R2}  {output.fastq_R2}
+        """
 
 #Download hg19 if any REF_HG19 repository can be found.
 rule get_hg19:
@@ -67,10 +79,10 @@ rule prepare_reference_srprism:
     input:
         HG19 = rules.get_hg19.output.hg19_ref
     output:
-        srprism = expand("REF_HG19/hg19.srprism.{subfile}",subfile=['amp','idx','imp','map','pmp','mpm','rmp','ss','ssa','ssd'])
+        srprism = expand("REF_HG19/hg19.srprism.{subfile}",subfile=['amp','idx','imp','map','pmp','rmp','ss','ssa','ssd'])
     shell:
         """
-        srprism mkindex -i {input} -o REF_HG19/hg19.srprism -M 20000
+        srprism mkindex -i {input} -o REF_HG19/hg19.srprism -M 16000
         """        
 
 rule prepare_reference_db:
@@ -95,3 +107,19 @@ rule prepare_reference_bmtool:
         """
         bmtool -d {input} -o {output.bitmask} -A 0 -w 18 -z
         """           
+
+#Unzip fastq
+rule fastq_unzip:
+    message:
+        "Unziping file"  
+    input:
+        copy_fastq_R1 = rules.fastq_copy.output.fastq_R1,
+        copy_fastq_R2 = rules.fastq_copy.output.fastq_R2,
+    output:
+        unzip_fastq_R1 = result_repository + "FASTQ/{sample}_R1.fastq",
+        unzip_fastq_R2 = result_repository + "FASTQ/{sample}_R2.fastq"    
+    shell:
+        """
+        gunzip -k {input.copy_fastq_R1} 
+        gunzip -k {input.copy_fastq_R2}  
+        """
