@@ -13,7 +13,7 @@ samplefile=config['Samplesheet_Location']
 table_samplefile=pd.read_csv(samplefile,sep=";",header=0,)  
 SAMPLE_LIST=list(table_samplefile['SAMPLE'])
 
-
+#Expected files at the end of the analysis.
 rule all:
     input:
         hg19_ref = "REF_HG19/hg19.fa" ,
@@ -24,7 +24,7 @@ rule all:
         srprism = expand("REF_HG19/hg19.srprism.{subfile}",subfile=['amp','idx','imp','map','mpm','rmp','ss','ssa','ssd'])
 
 
-
+#control samplefile and fastq's repository contents. Copy procceed fastq.
 rule check_samplefile:
     message:
         "Checking samplefile, and decompress fastq."  
@@ -45,6 +45,7 @@ rule check_samplefile:
         shell("cp {input.raw_fastq_R1} > {output.fastq_R1} ")
         shell("cp {input.raw_fastq_R2} > {output.fastq_R2} ")
 
+#Download hg19 if any REF_HG19 repository can be found.
 rule get_hg19:
     message:
         "download if necessary the hg19 reference genome."
@@ -60,20 +61,37 @@ rule get_hg19:
         #rm -r REF_HG19 
         """
 
-rule prepare_reference:
+rule prepare_reference_srprism:
     message:
-        "prepare reference genome before using BMtagger. Executed once per reference genome."
+        "prepare reference genome before using BMtagger. Executed once per reference genome. SRPRISM tool."
+    input:
+        HG19 = rules.get_hg19.output.hg19_ref
+    output:
+        srprism = expand("REF_HG19/hg19.srprism.{subfile}",subfile=['amp','idx','imp','map','pmp','mpm','rmp','ss','ssa','ssd'])
+    shell:
+        """
+        srprism mkindex -i {input} -o REF_HG19/hg19.srprism -M 20000
+        """        
+
+rule prepare_reference_db:
+    message:
+        "prepare reference genome before using BMtagger. Executed once per reference genome. makeblastdb tool."
     input:
         HG19 = rules.get_hg19.output.hg19_ref
     output:
         database = expand("REF_HG19/hg19.fa.{ext}", ext=["nhr", "nin", "nsq"]),
+    shell:
+        """       
+        makeblastdb -in {input} -dbtype nucl
+        """   
+rule prepare_reference_bmtool:
+    message:
+        "prepare reference genome before using BMtagger. Executed once per reference genome. bmtool use en reference genome."
+    input:
+        HG19 = rules.get_hg19.output.hg19_ref
+    output:
         bitmask = "REF_HG19/hg19.bitmask",
-        srprism = expand("REF_HG19/hg19.srprism.{subfile}",subfile=['amp','idx','imp','map','mpm','rmp','ss','ssa','ssd'])
     shell:
         """
         bmtool -d {input} -o {output.bitmask} -A 0 -w 18 -z
-        srprism mkindex -i {input} -o {output.srprism} -M 7168
-        makeblastdb -in {input} -dbtype nucl
-        """        
-
-     
+        """           
