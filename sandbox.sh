@@ -41,6 +41,22 @@ ln -s /srv/nfs/ngs-stockage/NGS_commun/disnap/NgsWeb/FastQ/${fastq_repository}/V
 #Remove symlink on data
 unlink $pathdata
 
+rule isolate_human_reads:
+    message:
+        "BMtagger tool is used to identify human read in fastq."
+    input:
+        raw_fastq_R1 = rules.check_samplefile.output.raw_fastq_R1,
+        raw_fastq_R2 = rules.check_samplefile.output.raw_fastq_R2
+    output:
+
+    shell:
         """
-        echo 'LELZ'
-        """
+        script/bmtagger.sh \ 
+            -­‐b reference.bitmask \
+            -­‐x reference.srprism \
+            -­‐T tmp \
+            -­‐q1 \
+            -­‐1<mate1.fq> \
+            -­‐2<mate2.fq> \
+            -­‐o<file.out> 
+        """   
