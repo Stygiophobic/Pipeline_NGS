@@ -33,7 +33,8 @@ rule output_pipeline:
         #fastq_R1 = expand(result_repository + "FASTQ/{sample}_R1.fastq.gz",sample=SAMPLE_LIST),
         #fastq_R2 = expand(result_repository + "FASTQ/{sample}_R2.fastq.gz",sample=SAMPLE_LIST),
         unzip_fastq_R1 = expand(result_repository + "FASTQ/{sample}_R1.fastq",sample=SAMPLE_LIST),
-        unzip_fastq_R2 = expand(result_repository + "FASTQ/{sample}_R2.fastq",sample=SAMPLE_LIST),           
+        unzip_fastq_R2 = expand(result_repository + "FASTQ/{sample}_R2.fastq",sample=SAMPLE_LIST), 
+        human_read_list = expand(result_repository + "BMtagger/{sample}.blacklist" ,sample=SAMPLE_LIST),        
         database = expand("REF_HG19/hg19.fa.{ext}", ext=["nhr", "nin", "nsq"]),
         bitmask = "REF_HG19/hg19.bitmask",
         srprism = expand("REF_HG19/hg19.srprism.{subfile}",subfile=['amp','idx','imp','map','rmp','ss','ssa','ssd'])
@@ -123,3 +124,17 @@ rule fastq_unzip:
         gunzip -k {input.copy_fastq_R1} 
         gunzip -k {input.copy_fastq_R2}  
         """
+rule use_BMtagger:
+    message:
+        "bmtagger on fastq data."
+    input:
+        unzip_fastq_R1 = rules.fastq_unzip.output.unzip_fastq_R1,
+        unzip_fastq_R2 = rules.fastq_unzip.output.unzip_fastq_R2,
+        bitmask = rules.prepare_reference_bmtool.output.bitmask,
+        srprism = rules.prepare_reference_srprism.output.srprism 
+    output:
+        human_read_list = result_repository + "BMtagger/{sample}.blacklist"
+    shell:
+        """
+        script/bmtagger.sh -q1 -b REF_HG19/hg19.bitmask -x REF_HG19/hg19.srprism -1 {input.unzip_fastq_R1} -2 {input.unzip_fastq_R2} -o {output} -T temp
+        """       
