@@ -27,8 +27,7 @@ k5start -U -f /home/chu-lyon.fr/regueex/login.kt -- nohup
 singularity exec $singularity_img snakemake \
     --config Result_Repository=$working_repository \
              Project_folder=$fastq_repository \
-             Samplesheet_Location=$samplefile 
-             > $working_repository${rep_report}report_${jour}_${heure}.txt    
+             Samplesheet_Location=$samplefile > $working_repository${rep_report}report_${jour}_${heure}.txt    
                         
 ################################################################################
 ###option:
