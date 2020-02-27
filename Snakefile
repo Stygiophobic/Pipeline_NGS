@@ -34,10 +34,14 @@ rule output_pipeline:
         #fastq_R2 = expand(result_repository + "FASTQ/{sample}_R2.fastq.gz",sample=SAMPLE_LIST),
         unzip_fastq_R1 = expand(result_repository + "FASTQ/{sample}_R1.fastq",sample=SAMPLE_LIST),
         unzip_fastq_R2 = expand(result_repository + "FASTQ/{sample}_R2.fastq",sample=SAMPLE_LIST), 
-        human_read_list = expand(result_repository + "BMtagger/{sample}.blacklist" ,sample=SAMPLE_LIST),        
-        database = expand("REF_HG19/hg19.fa.{ext}", ext=["nhr", "nin", "nsq"]),
-        bitmask = "REF_HG19/hg19.bitmask",
-        srprism = expand("REF_HG19/hg19.srprism.{subfile}",subfile=['amp','idx','imp','map','rmp','ss','ssa','ssd'])
+        #human_read_list = expand(result_repository + "BMtagger/{sample}.blacklist" ,sample=SAMPLE_LIST), 
+        R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
+        R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
+        HG19_filter =  expand(result_repository + "FASTQ_CLEANED/{sample}_HG19_filter.fastq",sample=SAMPLE_LIST),
+        BBMAP = "tool/bbmap/bbsplit.sh",       
+        #database = expand("REF_HG19/hg19.fa.{ext}", ext=["nhr", "nin", "nsq"]),
+        #bitmask = "REF_HG19/hg19.bitmask",
+        #srprism = expand("REF_HG19/hg19.srprism.{subfile}",subfile=['amp','idx','imp','map','rmp','ss','ssa','ssd'])
 
 
 #control samplefile and fastq's repository contents. Copy procceed fastq.
@@ -127,6 +131,7 @@ rule fastq_unzip:
 rule use_BMtagger:
     message:
         "bmtagger on fastq data."
+    threads: 4        
     input:
         unzip_fastq_R1 = rules.fastq_unzip.output.unzip_fastq_R1,
         unzip_fastq_R2 = rules.fastq_unzip.output.unzip_fastq_R2,
@@ -138,3 +143,38 @@ rule use_BMtagger:
         """
         script/bmtagger.sh -q1 -b REF_HG19/hg19.bitmask -x REF_HG19/hg19.srprism -1 {input.unzip_fastq_R1} -2 {input.unzip_fastq_R2} -o {output} -T temp
         """       
+
+rule get_BBmap:
+    message:"Download tool if necessary."
+    output:
+        BBMAP = "tool/bbmap/bbsplit.sh"
+    shell:
+        """
+        if [ ! -d tool ] ;then 
+            mkdir -p tool 
+        fi 
+        wget -P tool/ http://downloads.sourceforge.net/project/bbmap/BBMap_38.79.tar.gz 
+        tar -C tool/ -xzvf tool/BBMap_38.79.tar.gz 
+        chmod +x tool/bbmap/bbsplit.sh
+        """        
+
+rule clean_fastq:
+    message:
+        "Removing human reads from fastq."
+    input:
+        unzip_fastq_R1 = rules.fastq_unzip.output.unzip_fastq_R1,
+        unzip_fastq_R2 = rules.fastq_unzip.output.unzip_fastq_R2,
+        HG19 = rules.get_hg19.output.hg19_ref,
+        BBMAP = rules.get_BBmap.output.BBMAP
+    output:
+        R1_cleaned = result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",
+        R2_cleaned = result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",
+        HG19_filter = result_repository + "FASTQ_CLEANED/{sample}_HG19_filter.fastq"
+    shell:
+        """
+        {input.BBMAP} in1={input.unzip_fastq_R1} in2={input.unzip_fastq_R2} ref=REF_HG19/hg19.fa \
+        basename={output.HG19_filter} outu1={output.R1_cleaned} outu2={output.R2_cleaned}
+        """        
+
+
+            
