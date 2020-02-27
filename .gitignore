@@ -2,3 +2,5 @@ temp/*
 *snakemake*
 REF_HG19/*
 BMtagger/*
+tool/*
+
