@@ -28,7 +28,8 @@ singularity exec $singularity_img snakemake \
     --config Result_Repository=$working_repository \
              Project_folder=$fastq_repository \
              Samplesheet_Location=$samplefile 
-             > $working_repository${rep_report}report_${jour}_${heure}.txt              
+             > $working_repository${rep_report}report_${jour}_${heure}.txt    
+                        
 ################################################################################
 ###option:
 # --dryrun => fait tourner le pipeline à vide pour controler
