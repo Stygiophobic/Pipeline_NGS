@@ -6,7 +6,7 @@
 heure=$(date +%H%M)
 jour=$(date +%Y%m%d) 
 singularity_img="/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/NGS-PIPELINE.simg"
-fastq_repository="200218_NB501480_0458_AH3FM2BGXB_1582206003"
+fastq_repository="200218_NB501048_0691_AHYTKHAFXY_1582192205"
 run_name="Test_OLD_DATA"
 working_repository="/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/"
 pathdata=$working_repository$fastq_repository

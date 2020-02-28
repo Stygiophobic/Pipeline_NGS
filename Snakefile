@@ -78,41 +78,6 @@ rule get_hg19:
         #rm -r REF_HG19 
         """
 
-rule prepare_reference_srprism:
-    message:
-        "prepare reference genome before using BMtagger. Executed once per reference genome. SRPRISM tool."
-    input:
-        HG19 = rules.get_hg19.output.hg19_ref
-    output:
-        srprism = expand("REF_HG19/hg19.srprism.{subfile}",subfile=['amp','idx','imp','map','pmp','rmp','ss','ssa','ssd'])
-    shell:
-        """
-        srprism mkindex -i {input} -o REF_HG19/hg19.srprism -M 16000
-        """        
-
-rule prepare_reference_db:
-    message:
-        "prepare reference genome before using BMtagger. Executed once per reference genome. makeblastdb tool."
-    input:
-        HG19 = rules.get_hg19.output.hg19_ref
-    output:
-        database = expand("REF_HG19/hg19.fa.{ext}", ext=["nhr", "nin", "nsq"]),
-    shell:
-        """       
-        makeblastdb -in {input} -dbtype nucl
-        """   
-rule prepare_reference_bmtool:
-    message:
-        "prepare reference genome before using BMtagger. Executed once per reference genome. bmtool use en reference genome."
-    input:
-        HG19 = rules.get_hg19.output.hg19_ref
-    output:
-        bitmask = "REF_HG19/hg19.bitmask",
-    shell:
-        """
-        bmtool -d {input} -o {output.bitmask} -A 0 -w 18 -z
-        """           
-
 #Unzip fastq
 rule fastq_unzip:
     message:
@@ -128,22 +93,7 @@ rule fastq_unzip:
         gunzip -k {input.copy_fastq_R1} 
         gunzip -k {input.copy_fastq_R2}  
         """
-rule use_BMtagger:
-    message:
-        "bmtagger on fastq data."
-    threads: 4        
-    input:
-        unzip_fastq_R1 = rules.fastq_unzip.output.unzip_fastq_R1,
-        unzip_fastq_R2 = rules.fastq_unzip.output.unzip_fastq_R2,
-        bitmask = rules.prepare_reference_bmtool.output.bitmask,
-        srprism = rules.prepare_reference_srprism.output.srprism 
-    output:
-        human_read_list = result_repository + "BMtagger/{sample}.blacklist"
-    shell:
-        """
-        script/bmtagger.sh -q1 -b REF_HG19/hg19.bitmask -x REF_HG19/hg19.srprism -1 {input.unzip_fastq_R1} -2 {input.unzip_fastq_R2} -o {output} -T temp
-        """       
-
+#Download BBmap tool
 rule get_BBmap:
     message:"Download tool if necessary."
     output:
@@ -157,7 +107,7 @@ rule get_BBmap:
         tar -C tool/ -xzvf tool/BBMap_38.79.tar.gz 
         chmod +x tool/bbmap/bbsplit.sh
         """        
-
+#Removing human reads from fastq
 rule clean_fastq:
     message:
         "Removing human reads from fastq."
@@ -168,15 +118,18 @@ rule clean_fastq:
         BBMAP = rules.get_BBmap.output.BBMAP
     output:
         R1_cleaned = result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",
-        R2_cleaned = result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",
-        
-    params:
-        HG19_filter = result_repository + "FASTQ_CLEANED/{sample}_%_filter.fastq"
+        R2_cleaned = result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq", 
     shell:
         """
         {input.BBMAP} in1={input.unzip_fastq_R1} in2={input.unzip_fastq_R2} ref=REF_HG19/hg19.fa \
-        basename={rules.clean_fastq.params.HG19_filter} outu1={output.R1_cleaned} outu2={output.R2_cleaned}
+        basename={wildcards.sample}_%.fastq outu1={output.R1_cleaned} outu2={output.R2_cleaned} path=temp/
         """        
 
+rule trim_fastq:
+    message:
+        "Use of the trimgalore tool for filtering fastq and get optimal reads."
+    input:
+        R1_cleaned = rules.clean_fastq.output.R1_cleaned , 
+        R2_cleaned = rules.clean_fastq.output.R2_cleaned ,          
 
             
