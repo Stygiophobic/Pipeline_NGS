@@ -37,7 +37,7 @@ rule output_pipeline:
         #human_read_list = expand(result_repository + "BMtagger/{sample}.blacklist" ,sample=SAMPLE_LIST), 
         R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
         R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
-        HG19_filter =  expand(result_repository + "FASTQ_CLEANED/{sample}_HG19_filter.fastq",sample=SAMPLE_LIST),
+        #HG19_filter =  expand(result_repository + "FASTQ_CLEANED/{sample}_HG19_filter.fastq",sample=SAMPLE_LIST),
         BBMAP = "tool/bbmap/bbsplit.sh",       
         #database = expand("REF_HG19/hg19.fa.{ext}", ext=["nhr", "nin", "nsq"]),
         #bitmask = "REF_HG19/hg19.bitmask",
@@ -169,11 +169,13 @@ rule clean_fastq:
     output:
         R1_cleaned = result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",
         R2_cleaned = result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",
-        HG19_filter = result_repository + "FASTQ_CLEANED/{sample}_HG19_filter.fastq"
+        
+    params:
+        HG19_filter = result_repository + "FASTQ_CLEANED/{sample}_%_filter.fastq"
     shell:
         """
         {input.BBMAP} in1={input.unzip_fastq_R1} in2={input.unzip_fastq_R2} ref=REF_HG19/hg19.fa \
-        basename={output.HG19_filter} outu1={output.R1_cleaned} outu2={output.R2_cleaned}
+        basename={rules.clean_fastq.params.HG19_filter} outu1={output.R1_cleaned} outu2={output.R2_cleaned}
         """        
 
 
