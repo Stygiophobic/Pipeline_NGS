@@ -5,7 +5,7 @@
 ################################################################################
 heure=$(date +%H%M)
 jour=$(date +%Y%m%d) 
-singularity_img="/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/IMG_SINGULARITY/test2.simg"
+singularity_img="/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/NGS-PIPELINE.simg"
 fastq_repository="200218_NB501480_0458_AH3FM2BGXB_1582206003"
 run_name="Test_OLD_DATA"
 working_repository="/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/"
