@@ -138,7 +138,8 @@ rule clean_fastq:
         index = rules.create_index.output.index    
     output:
         R1_cleaned = result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",
-        R2_cleaned = result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq"
+        R2_cleaned = result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",
+        HUMAN = result_repository + "FASTQ_CLEANED/{sample}_hg19.fastq"
     params:
         path_human= result_repository + "FASTQ_CLEANED/"   
     shell:
