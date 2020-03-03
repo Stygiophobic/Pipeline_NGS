@@ -40,11 +40,8 @@ rule output_pipeline:
         #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
         #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
         #T_G = "tool/TrimGalore-0.6.5/trim_galore" ,
-        #HG19_filter =  expand(result_repository + "FASTQ_CLEANED/{sample}_HG19_filter.fastq",sample=SAMPLE_LIST),
         #BBMAP = "tool/bbmap/bbmap.sh",       
-        #database = expand("REF_HG19/hg19.fa.{ext}", ext=["nhr", "nin", "nsq"]),
-        #bitmask = "REF_HG19/hg19.bitmask",
-        #srprism = expand("REF_HG19/hg19.srprism.{subfile}",subfile=['amp','idx','imp','map','rmp','ss','ssa','ssd'])
+
 
 
 #control samplefile and fastq's repository contents. Copy procceed fastq.
@@ -152,6 +149,7 @@ rule clean_fastq:
         path=temp/ 
         """        
 
+#Downloading the trimgalore binary if needed
 rule get_trimgalore:
     message:
         "download Trimgalore binary. cutadapt and fastqc are already installed into the singularity IMG."
@@ -168,6 +166,7 @@ rule get_trimgalore:
         rm tool/trim_galore.tar.gz
         """        
 
+#Perform trimming on all cleaned fastq using TrimGalore
 rule trim_fastq:
     message:
         "Use of the trimgalore tool for filtering fastq and get optimal reads."
@@ -182,9 +181,10 @@ rule trim_fastq:
         TG_output = result_repository + "FASTQ_TRIMM/"        
     shell:
         """
-        {input.T_G} --dont_gzip --no_report_file --trim-n --quality 20 --length 50 \
+        {input.T_G} --dont_gzip --no_report_file --trim-n --quality 20 --length 50 --basename {wildcards.sample} \
         --paired {input.R1_cleaned} {input.R2_cleaned} --output_dir {rules.trim_fastq.params.TG_output}
-        mv {rules.trim_fastq.params.TG_output}*_cleaned.fastq {rules.trim_fastq.params.TG_output}*_trimmed.fastq
+        mv {rules.trim_fastq.params.TG_output}{wildcards.sample}_val_1.fq {rules.trim_fastq.params.TG_output}{wildcards.sample}_R1_trimmed.fastq
+        mv {rules.trim_fastq.params.TG_output}{wildcards.sample}_val_2.fq {rules.trim_fastq.params.TG_output}{wildcards.sample}_R2_trimmed.fastq
         """                   
 
             
