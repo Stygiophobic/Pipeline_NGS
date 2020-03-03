@@ -37,6 +37,7 @@ singularity exec $singularity_img snakemake \
 #Create symlink on data
 ln -s /srv/nfs/ngs-stockage/NGS_commun/disnap/NgsWeb/FastQ/${fastq_repository}/ViroEst-Routine $pathdata
 
+echo "kek"
 
 #Remove symlink on data
 unlink $pathdata

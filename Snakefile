@@ -29,16 +29,19 @@ if (SAMPLEFILE_NUMBER>SAMPLE_NUMBER):
 #Expected files at the end of the analysis.
 rule output_pipeline:
     input:
-        hg19_ref = "REF_HG19/hg19.fa" ,
+        #hg19_ref = "REF_HG19/hg19.fa" ,
         #fastq_R1 = expand(result_repository + "FASTQ/{sample}_R1.fastq.gz",sample=SAMPLE_LIST),
         #fastq_R2 = expand(result_repository + "FASTQ/{sample}_R2.fastq.gz",sample=SAMPLE_LIST),
         #unzip_fastq_R1 = expand(result_repository + "FASTQ/{sample}_R1.fastq",sample=SAMPLE_LIST),
         #unzip_fastq_R2 = expand(result_repository + "FASTQ/{sample}_R2.fastq",sample=SAMPLE_LIST), 
         #human_read_list = expand(result_repository + "BMtagger/{sample}.blacklist" ,sample=SAMPLE_LIST), 
-        R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
-        R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
+        R1_trimmed =  expand(result_repository + "FASTQ_TRIMM/{sample}_R1_trimmed.fastq",sample=SAMPLE_LIST) ,
+        R2_trimmed =  expand(result_repository + "FASTQ_TRIMM/{sample}_R2_trimmed.fastq",sample=SAMPLE_LIST) ,
+        #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
+        #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
+        #T_G = "tool/TrimGalore-0.6.5/trim_galore" ,
         #HG19_filter =  expand(result_repository + "FASTQ_CLEANED/{sample}_HG19_filter.fastq",sample=SAMPLE_LIST),
-        BBMAP = "tool/bbmap/bbmap.sh",       
+        #BBMAP = "tool/bbmap/bbmap.sh",       
         #database = expand("REF_HG19/hg19.fa.{ext}", ext=["nhr", "nin", "nsq"]),
         #bitmask = "REF_HG19/hg19.bitmask",
         #srprism = expand("REF_HG19/hg19.srprism.{subfile}",subfile=['amp','idx','imp','map','rmp','ss','ssa','ssd'])
@@ -98,7 +101,7 @@ rule get_BBmap:
     message:
         "Download tool if necessary."
     output:
-        BBMAP = "tool/bbmap/bbmap.sh"
+        BBMAP = "tool/bbmap/bbsplit.sh"
     shell:
         """
         if [ ! -d tool ] ;then 
@@ -106,7 +109,7 @@ rule get_BBmap:
         fi 
         wget -P tool/ http://downloads.sourceforge.net/project/bbmap/BBMap_38.79.tar.gz
         tar -C tool/ -xzvf tool/BBMap_38.79.tar.gz 
-        chmod +x tool/bbmap/bbsmap.sh
+        chmod +x tool/bbmap/bbsplit.sh
         rm tool/BBMap_38.79.tar.gz
         """        
 rule create_index:
@@ -121,9 +124,9 @@ rule create_index:
         index = "temp/ref/genome/1/summary.txt"
     shell:
         """
-        #tool/bbmap/bbsplit.sh  ref=REF_HG19/hg19.fa path=temp/
-        tool/bbmap/bbmap.sh ref=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/hg19_main_mask_ribo_animal_allplant_allfungus.fa.gz  \
-        -Xmx16g -usemodulo=true path=temp/
+        tool/bbmap/bbsplit.sh  ref=REF_HG19/hg19.fa path=temp/
+        #tool/bbmap/bbmap.sh ref=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/hg19_main_mask_ribo_animal_allplant_allfungus.fa.gz  \
+        #-Xmx16g -usemodulo=true path=temp/
         """
 
 #Removing human reads from fastq
@@ -144,9 +147,25 @@ rule clean_fastq:
         path_human= result_repository + "FASTQ_CLEANED/"   
     shell:
         """
-        {input.BBMAP} minid=0.95 maxindel=3 bwr=0.16 bw=12 quickmatch fast minhits=2 path=temp qtrim=rl trimq=10 untrim -Xmx20g \
-        in1={input.unzip_fastq_R1} in2={input.unzip_fastq_R2} outu1={output.R1_cleaned} outu2={output.R2_cleaned} \
-        outm={rules.clean_fastq.params.path_human}{wildcards.sample}_human.fastq path=temp/
+        {input.BBMAP} in1={input.unzip_fastq_R1} in2={input.unzip_fastq_R2}  \
+        basename={rules.clean_fastq.params.path_human}{wildcards.sample}_%.fastq outu1={output.R1_cleaned} outu2={output.R2_cleaned} \
+        path=temp/ 
+        """        
+
+rule get_trimgalore:
+    message:
+        "download Trimgalore binary. cutadapt and fastqc are already installed into the singularity IMG."
+    output:
+        T_G = "tool/TrimGalore-0.6.5/trim_galore"
+    shell:
+        """
+        if [ ! -d tool ] ;then 
+            mkdir -p tool 
+        fi 
+        curl -fsSL https://github.com/FelixKrueger/TrimGalore/archive/0.6.5.tar.gz -o tool/trim_galore.tar.gz
+        tar -C tool/ -xvzf tool/trim_galore.tar.gz
+        #chmod +x tool/TrimGalore-0.6.5/trim_galore
+        rm tool/trim_galore.tar.gz
         """        
 
 rule trim_fastq:
@@ -154,6 +173,18 @@ rule trim_fastq:
         "Use of the trimgalore tool for filtering fastq and get optimal reads."
     input:
         R1_cleaned = rules.clean_fastq.output.R1_cleaned , 
-        R2_cleaned = rules.clean_fastq.output.R2_cleaned ,          
+        R2_cleaned = rules.clean_fastq.output.R2_cleaned ,       
+        T_G = rules.get_trimgalore.output.T_G
+    output:
+        R1_trimmed =  result_repository + "FASTQ_TRIMM/{sample}_R1_trimmed.fastq" ,
+        R2_trimmed =  result_repository + "FASTQ_TRIMM/{sample}_R2_trimmed.fastq" ,
+    params:
+        TG_output = result_repository + "FASTQ_TRIMM/"        
+    shell:
+        """
+        {input.T_G} --dont_gzip --no_report_file --trim-n --quality 20 --length 50 \
+        --paired {input.R1_cleaned} {input.R2_cleaned} --output_dir {rules.trim_fastq.params.TG_output}
+        mv {rules.trim_fastq.params.TG_output}*_cleaned.fastq {rules.trim_fastq.params.TG_output}*_trimmed.fastq
+        """                   
 
             
