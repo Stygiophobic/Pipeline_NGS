@@ -29,7 +29,7 @@ if (SAMPLEFILE_NUMBER>SAMPLE_NUMBER):
 #Expected files at the end of the analysis.
 rule output_pipeline:
     input:
-        #hg19_ref = "REF_HG19/hg19.fa" ,
+        hg19_ref = "REF_HG19/hg19.fa" ,
         #fastq_R1 = expand(result_repository + "FASTQ/{sample}_R1.fastq.gz",sample=SAMPLE_LIST),
         #fastq_R2 = expand(result_repository + "FASTQ/{sample}_R2.fastq.gz",sample=SAMPLE_LIST),
         #unzip_fastq_R1 = expand(result_repository + "FASTQ/{sample}_R1.fastq",sample=SAMPLE_LIST),
@@ -38,7 +38,7 @@ rule output_pipeline:
         R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
         R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
         #HG19_filter =  expand(result_repository + "FASTQ_CLEANED/{sample}_HG19_filter.fastq",sample=SAMPLE_LIST),
-        #BBMAP = "tool/bbmap/bbsplit.sh",       
+        BBMAP = "tool/bbmap/bbmap.sh",       
         #database = expand("REF_HG19/hg19.fa.{ext}", ext=["nhr", "nin", "nsq"]),
         #bitmask = "REF_HG19/hg19.bitmask",
         #srprism = expand("REF_HG19/hg19.srprism.{subfile}",subfile=['amp','idx','imp','map','rmp','ss','ssa','ssd'])
@@ -98,7 +98,7 @@ rule get_BBmap:
     message:
         "Download tool if necessary."
     output:
-        BBMAP = "tool/bbmap/bbsplit.sh"
+        BBMAP = "tool/bbmap/bbmap.sh"
     shell:
         """
         if [ ! -d tool ] ;then 
@@ -106,26 +106,32 @@ rule get_BBmap:
         fi 
         wget -P tool/ http://downloads.sourceforge.net/project/bbmap/BBMap_38.79.tar.gz
         tar -C tool/ -xzvf tool/BBMap_38.79.tar.gz 
-        chmod +x tool/bbmap/bbsplit.sh
+        chmod +x tool/bbmap/bbsmap.sh
         rm tool/BBMap_38.79.tar.gz
         """        
 rule create_index:
     message:
         "Produce index on hg19 reference."
+    params:
+        path_human= result_repository 
     input:
         BBMAP = rules.get_BBmap.output.BBMAP,
         HG19 = rules.get_hg19.output.hg19_ref
     output:
-        index = "temp/ref/genome/1/reflist.txt"
+        index = "temp/ref/genome/1/summary.txt"
     shell:
         """
-        tool/bbmap/bbsplit.sh  ref=REF_HG19/hg19.fa path=temp/
+        #tool/bbmap/bbsplit.sh  ref=REF_HG19/hg19.fa path=temp/
+        tool/bbmap/bbmap.sh ref=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/hg19_main_mask_ribo_animal_allplant_allfungus.fa.gz  \
+        -Xmx16g -usemodulo=true path=temp/
         """
 
 #Removing human reads from fastq
 rule clean_fastq:
     message:
         "Removing human reads from fastq."   
+    #threads:1        
+    resources: mem_gb= 20
     input:
         unzip_fastq_R1 = rules.fastq_unzip.output.unzip_fastq_R1,
         unzip_fastq_R2 = rules.fastq_unzip.output.unzip_fastq_R2,
@@ -138,9 +144,9 @@ rule clean_fastq:
         path_human= result_repository + "FASTQ_CLEANED/"   
     shell:
         """
-        {input.BBMAP} in1={input.unzip_fastq_R1} in2={input.unzip_fastq_R2}  \
-        basename={rules.clean_fastq.params.path_human}{wildcards.sample}_%.fastq outu1={output.R1_cleaned} outu2={output.R2_cleaned} \
-        path=temp/ t=1 usemodulo=true
+        {input.BBMAP} minid=0.95 maxindel=3 bwr=0.16 bw=12 quickmatch fast minhits=2 path=temp qtrim=rl trimq=10 untrim -Xmx20g \
+        in1={input.unzip_fastq_R1} in2={input.unzip_fastq_R2} outu1={output.R1_cleaned} outu2={output.R2_cleaned} \
+        outm={rules.clean_fastq.params.path_human}{wildcards.sample}_human.fastq path=temp/
         """        
 
 rule trim_fastq:

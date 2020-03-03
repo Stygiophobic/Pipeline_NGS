@@ -25,7 +25,7 @@ ln -s /srv/nfs/ngs-stockage/NGS_commun/disnap/NgsWeb/FastQ/${fastq_repository}/V
 ################################################################################ 
 k5start -U -f /home/chu-lyon.fr/regueex/login.kt -- nohup 
 singularity exec $singularity_img snakemake \
-    --resources mem_mb=24000 \
+    --resources mem_gb=32 \
     --config Result_Repository=$working_repository \
              Project_folder=$fastq_repository \
              Samplesheet_Location=$samplefile > $working_repository${rep_report}report_${jour}_${heure}.txt    
