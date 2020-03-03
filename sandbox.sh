@@ -25,6 +25,7 @@ ln -s /srv/nfs/ngs-stockage/NGS_commun/disnap/NgsWeb/FastQ/${fastq_repository}/V
 ################################################################################ 
 k5start -U -f /home/chu-lyon.fr/regueex/login.kt -- nohup 
 singularity exec $singularity_img snakemake \
+    --resources mem_mb=24000 \
     --config Result_Repository=$working_repository \
              Project_folder=$fastq_repository \
              Samplesheet_Location=$samplefile > $working_repository${rep_report}report_${jour}_${heure}.txt    
@@ -39,4 +40,17 @@ ln -s /srv/nfs/ngs-stockage/NGS_commun/disnap/NgsWeb/FastQ/${fastq_repository}/V
 
 #Remove symlink on data
 unlink $pathdata
+
+
+#test BBtool
+singularity_img="/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/NGS-PIPELINE.simg"
+singularity shell $singularity_img
+
+#full job
+tool/bbmap/bbsplit.sh in1=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ/S20105_S15_R1.fastq in2=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ/S20105_S15_R2.fastq ref=REF_HG19/hg19.fa         basename=S20105_S15_%.fastq outu1=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ_CLEANED/S20105_S15_R1_cleaned.fastq outu2=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ_CLEANED/S20105_S15_R2_cleaned.fastq path=temp/ -Xmx16g
+#index:
+tool/bbmap/bbsplit.sh  ref=REF_HG19/hg19.fa  basename=S20105_S15_%.fastq outu1=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ_CLEANED/S20105_S15_R1_cleaned.fastq outu2=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ_CLEANED/S20105_S15_R2_cleaned.fastq path=temp/ -Xmx16g
+tool/bbmap/bbsplit.sh  ref=REF_HG19/hg19.fa path=temp/
+
+tool/bbmap/bbsplit.sh in1=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ/S20105_S15_R1.fastq in2=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ/S20105_S15_R2.fastq ref=REF_HG19/hg19.fa         basename=S20105_S15_%.fastq outu1=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ_CLEANED/S20105_S15_R1_cleaned.fastq outu2=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ_CLEANED/S20105_S15_R2_cleaned.fastq path=temp/ 
 
