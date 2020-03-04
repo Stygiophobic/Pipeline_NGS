@@ -40,6 +40,8 @@ rule output_pipeline:
         #R2_trimmed =  expand(result_repository + "FASTQ_TRIMM/{sample}_R2_trimmed.fastq",sample=SAMPLE_LIST) ,
         #SAM = expand(result_repository + "SAM/{sample}.sam",sample=SAMPLE_LIST),
         count_premapping = expand(result_repository + "COUNT_MAPPING/{sample}_premapping.csv",sample=SAMPLE_LIST) ,
+        sum_premapping = result_repository + "MAPPING_RESULT/premapping_result.csv",
+        SAM_SUBTYPE = expand(result_repository + "SAM_SUBTYPE/{sample}.sam",sample=SAMPLE_LIST,subtype=SUBTYPE),
         #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
         #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
         #T_G = "tool/TrimGalore-0.6.5/trim_galore" ,
@@ -222,7 +224,47 @@ rule premapping_count:
         result.write(wildcards.sample + ";" + SubType)
         result.close()
 
-        
+rule concatenate_premapping:
+    message:
+        "Mapping based on the previous results. Sample is mapped on his assigned subtype."
+    input:
+        count_premapping = expand(rules.premapping_count.output.count_premapping,sample=SAMPLE_LIST )  
+    output:
+        sum_premapping = result_repository + "MAPPING_RESULT/premapping_result.csv"
+    params:
+        path_repository = result_repository +  "COUNT_MAPPING/"
+    run:   
+        #Concatenate premaping results        
+        list_file=os.listdir(result_repository +  "COUNT_MAPPING/")
+        result=open(result_repository +  "MAPPING_RESULT/" + "premapping_result.csv",'w')
+        result.write("SAMPLE;SUBTYPE\n")
+        for file in list_file:
+            data=open(result_repository + "COUNT_MAPPING/" + file,'r')
+            value=data.readline()+"\n"
+            result.write(value)
+            data.close()                
+        result.close()
+
+rule subtype_mapping:
+    message:
+        "Alignement on the assigned subtype."
+    threads:6    
+    input:        
+        R1_trimmed = rules.trim_fastq.output.R1_trimmed ,
+        R2_trimmed = rules.trim_fastq.output.R2_trimmed ,
+        sum_premapping = rules.concatenate_premapping.output.sum_premapping
+    output:
+        SAM = result_repository + "SAM_SUBTYPE/{sample}.sam"
+    params:
+        subtype=SUBTYPE
+    run:
+        #Read the results of the premapping to get the subtype
+        table_subtype=pd.read_csv(input.sum_premapping,sep=";",header=0)  
+        table_subtype = table_subtype.loc[table_subtype['SAMPLE'] == wildcards.sample]
+        SubType = table_subtype['SUBTYPE'].values[0]
+        #BWA mem allignement
+        shell("bwa index -p temp/{SubType} mapping/subtype_mapping/{SubType}.fasta")
+        shell("bwa mem -t 6 -O 10 -E 2 temp/{SubType} {input.R1_trimmed} {input.R2_trimmed} > {output}")
 
 
-            
+
