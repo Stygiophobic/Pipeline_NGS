@@ -42,16 +42,8 @@ echo "kek"
 #Remove symlink on data
 unlink $pathdata
 
-
-#test BBtool
-singularity_img="/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/NGS-PIPELINE.simg"
-singularity shell $singularity_img
-
-#full job
-tool/bbmap/bbsplit.sh in1=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ/S20105_S15_R1.fastq in2=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ/S20105_S15_R2.fastq ref=REF_HG19/hg19.fa         basename=S20105_S15_%.fastq outu1=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ_CLEANED/S20105_S15_R1_cleaned.fastq outu2=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ_CLEANED/S20105_S15_R2_cleaned.fastq path=temp/ -Xmx16g
-#index:
-tool/bbmap/bbsplit.sh  ref=REF_HG19/hg19.fa  basename=S20105_S15_%.fastq outu1=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ_CLEANED/S20105_S15_R1_cleaned.fastq outu2=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ_CLEANED/S20105_S15_R2_cleaned.fastq path=temp/ -Xmx16g
-tool/bbmap/bbsplit.sh  ref=REF_HG19/hg19.fa path=temp/
-
-tool/bbmap/bbsplit.sh in1=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ/S20105_S15_R1.fastq in2=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ/S20105_S15_R2.fastq ref=REF_HG19/hg19.fa         basename=S20105_S15_%.fastq outu1=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ_CLEANED/S20105_S15_R1_cleaned.fastq outu2=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/FASTQ_CLEANED/S20105_S15_R2_cleaned.fastq path=temp/ 
-
+#BWA
+bwa index -p temp/influenza_subtype mapping/pre_mapping/influenza_subtype.fasta
+#SAMTOOLS
+samtools view -bSc /srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/SAM/S20119_S50.sam > /srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/SAM/test.bam
+samtools view -S /srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/SAM/S20119_S50.sam | cut -f 3 | sort | uniq -c | sort -nr | sed -e 's/^ *//;s/ /\t/' | tr '\t'  ';'> RefsReadsCount.txt

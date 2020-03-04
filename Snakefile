@@ -17,7 +17,9 @@ SAMPLE_LIST=list(table_samplefile['SAMPLE'])
 SAMPLE_NUMBER=len(os.listdir(result_repository + fastq_repository_name))/2
 SAMPLEFILE_NUMBER=len(SAMPLE_LIST)
 
-
+#WILCARD SUBTYPE:
+SUBTYPE=['BVIC_Malaysia2506','BYAM_Florida4','pH1N1_California07','H3N2_Perth16']
+dict_subtype={}
 
 print("\nPIPELINE INFORMATION:\n")
 if (SAMPLEFILE_NUMBER<SAMPLE_NUMBER):
@@ -34,8 +36,10 @@ rule output_pipeline:
         #fastq_R2 = expand(result_repository + "FASTQ/{sample}_R2.fastq.gz",sample=SAMPLE_LIST),
         #unzip_fastq_R1 = expand(result_repository + "FASTQ/{sample}_R1.fastq",sample=SAMPLE_LIST),
         #unzip_fastq_R2 = expand(result_repository + "FASTQ/{sample}_R2.fastq",sample=SAMPLE_LIST), 
-        R1_trimmed =  expand(result_repository + "FASTQ_TRIMM/{sample}_R1_trimmed.fastq",sample=SAMPLE_LIST) ,
-        R2_trimmed =  expand(result_repository + "FASTQ_TRIMM/{sample}_R2_trimmed.fastq",sample=SAMPLE_LIST) ,
+        #R1_trimmed =  expand(result_repository + "FASTQ_TRIMM/{sample}_R1_trimmed.fastq",sample=SAMPLE_LIST) ,
+        #R2_trimmed =  expand(result_repository + "FASTQ_TRIMM/{sample}_R2_trimmed.fastq",sample=SAMPLE_LIST) ,
+        #SAM = expand(result_repository + "SAM/{sample}.sam",sample=SAMPLE_LIST),
+        count_premapping = expand(result_repository + "COUNT_MAPPING/{sample}_premapping.csv",sample=SAMPLE_LIST) ,
         #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
         #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
         #T_G = "tool/TrimGalore-0.6.5/trim_galore" ,
@@ -186,5 +190,39 @@ rule trim_fastq:
         mv {rules.trim_fastq.params.TG_output}{wildcards.sample}_val_1.fq {rules.trim_fastq.params.TG_output}{wildcards.sample}_R1_trimmed.fastq
         mv {rules.trim_fastq.params.TG_output}{wildcards.sample}_val_2.fq {rules.trim_fastq.params.TG_output}{wildcards.sample}_R2_trimmed.fastq
         """                   
+
+rule premapping_align:
+    message:
+        "Alignment on each influenza subtype to the sample using bwa."
+    threads:4    
+    input:
+        R1_trimmed = rules.trim_fastq.output.R1_trimmed ,
+        R2_trimmed = rules.trim_fastq.output.R2_trimmed ,
+    output:
+        SAM = result_repository + "SAM/{sample}.sam"
+    shell:
+        """
+        bwa index -p temp/influenza_subtype mapping/pre_mapping/influenza_subtype.fasta
+        bwa mem -t 4 -O 10 -E 2 temp/influenza_subtype {input.R1_trimmed} {input.R2_trimmed} > {output}
+        """
+
+rule premapping_count:  
+    message:
+        "Counting and sum up the mapping for each samples using samtools and unix commands."
+    input: 
+        SAM = rules.premapping_align.output.SAM
+    output:  
+        count_premapping = result_repository + "COUNT_MAPPING/{sample}_premapping.csv"
+    run:
+        shell("samtools view -S {input} | cut -f 3 | sort | uniq -c | sort -nr | sed -e 's/^ *//;s/ /\t/' | tr '\t' ';'> temp/count_{wildcards.sample}.txt")
+        table=pd.read_csv("temp/count_"+wildcards.sample+".txt",sep=";",names=['COUNT','MAPPING'])  
+        table = table.loc[table['MAPPING'] != "*"]
+        SubType = table['MAPPING'].values[0]
+        result=open(result_repository + "COUNT_MAPPING/"+wildcards.sample+"_premapping.csv",'w')
+        result.write(wildcards.sample + ";" + SubType)
+        result.close()
+
+        
+
 
             
