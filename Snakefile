@@ -42,6 +42,10 @@ rule output_pipeline:
         count_premapping = expand(result_repository + "COUNT_MAPPING/{sample}_premapping.csv",sample=SAMPLE_LIST) ,
         sum_premapping = result_repository + "MAPPING_RESULT/premapping_result.csv",
         SAM_SUBTYPE = expand(result_repository + "SAM_SUBTYPE/{sample}.sam",sample=SAMPLE_LIST,subtype=SUBTYPE),
+        annot_BVIC = "annot/BVIC_Malaysia2506.dict" ,
+        annot_BYAM = "annot/BYAM_Florida4.dict" ,
+        annot_H3N2 = "annot/H3N2_Perth16.dict" ,
+        annot_H1N1 = "annot/pH1N1_California07.dict" ,
         #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
         #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
         #T_G = "tool/TrimGalore-0.6.5/trim_galore" ,
@@ -266,5 +270,32 @@ rule subtype_mapping:
         shell("bwa index -p temp/{SubType} mapping/subtype_mapping/{SubType}.fasta")
         shell("bwa mem -t 6 -O 10 -E 2 temp/{SubType} {input.R1_trimmed} {input.R2_trimmed} > {output}")
 
+rule get_picard:
+    message:
+        "Download picard tool if necessary."
+    output:
+        Picard = "tool/picard.jar"
+    shell:
+        """
+        wget -P tool/ https://github.com/broadinstitute/picard/releases/download/2.22.0/picard.jar
+        """        
+
+rule use_picard:
+    message:
+        "do un truc que je comprends pas"
+    input:
+        Picard = rules.get_picard.output.Picard
+    output:
+        annot_BVIC = "annot/BVIC_Malaysia2506.dict" ,
+        annot_BYAM = "annot/BYAM_Florida4.dict" ,
+        annot_H3N2 = "annot/H3N2_Perth16.dict" ,
+        annot_H1N1 = "annot/pH1N1_California07.dict" ,
+    shell:
+        """
+        java -jar {input} CreateSequenceDictionary R= mapping/subtype_mapping/BVIC_Malaysia2506.fasta O= annot/BVIC_Malaysia2506.dict
+        java -jar {input} CreateSequenceDictionary R= mapping/subtype_mapping/BYAM_Florida4.fasta O= annot/BYAM_Florida4.dict
+        java -jar {input} CreateSequenceDictionary R= mapping/subtype_mapping/H3N2_Perth16.fasta O= annot/H3N2_Perth16.dict
+        java -jar {input} CreateSequenceDictionary R= mapping/subtype_mapping/pH1N1_California07.fasta O= annot/pH1N1_California07.dict
+        """        
 
 
