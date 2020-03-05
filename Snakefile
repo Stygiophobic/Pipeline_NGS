@@ -46,6 +46,8 @@ rule output_pipeline:
         annot_BYAM = "annot/BYAM_Florida4.dict" ,
         annot_H3N2 = "annot/H3N2_Perth16.dict" ,
         annot_H1N1 = "annot/pH1N1_California07.dict" ,
+        BAM = expand(result_repository + "BAM_SUBTYPE/{sample}.bam",sample=SAMPLE_LIST) ,
+
         #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
         #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
         #T_G = "tool/TrimGalore-0.6.5/trim_galore" ,
@@ -298,4 +300,25 @@ rule use_picard:
         java -jar {input} CreateSequenceDictionary R= mapping/subtype_mapping/pH1N1_California07.fasta O= annot/pH1N1_California07.dict
         """        
 
+rule sam_to_bam_subtype:
+    message:
+        "Convert sam from subtype alignment into bam."
+    input:
+        SAM = rules.subtype_mapping.output.SAM
+    output:
+        BAM = result_repository + "BAM_SUBTYPE/{sample}.bam"
+    shell:
+        """
+        samtools view -b {input} > temp/{wildcards.sample}_unprocessed.bam
+        samtools sort temp/{wildcards.sample}_unprocessed.bam -o {output}
+        rm temp/{wildcards.sample}_unprocessed.bam
+        """        
+
+
+rule create_cons:
+    input:
+        annot_BVIC = rules.use_picard.output.annot_BVIC,
+        annot_BYAM = rules.use_picard.output.annot_BYAM,
+        annot_H1N1 = rules.use_picard.output.annot_H1N1,
+        annot_H3N2 = rules.use_picard.output.annot_H3N2,
 
