@@ -4,4 +4,5 @@ REF_HG19/*
 BMtagger/*
 tool/*
 annot/*
+mapping/subtype_mapping/*.fai
 
