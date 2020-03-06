@@ -47,8 +47,9 @@ rule output_pipeline:
         #annot_H3N2 = "annot/H3N2_Perth16.dict" ,
         #annot_H1N1 = "annot/pH1N1_California07.dict" ,
         #BAM = expand(result_repository + "BAM_SUBTYPE/{sample}.bam",sample=SAMPLE_LIST) ,
-        fasta = expand("temp/{sample}.fasta",sample=SAMPLE_LIST) ,
-        cons_annot = expand("annot/{sample}.dict",sample=SAMPLE_LIST) ,
+        #fasta = expand("temp/{sample}.fasta",sample=SAMPLE_LIST) ,
+        #cons_annot = expand("annot/{sample}.dict",sample=SAMPLE_LIST) ,
+        BAM_sorted = expand(result_repository + "BAM_FINAL/{sample}.bam",sample=SAMPLE_LIST) ,
         #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
         #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
         #T_G = "tool/TrimGalore-0.6.5/trim_galore" ,
@@ -339,3 +340,20 @@ rule create_cons:
         shell("bwa index -p temp/ {output.fasta}")
         shell("java -jar {input.Picard} CreateSequenceDictionary R={output.fasta} O={output.cons_annot}")
 
+rule consensus_mapping:
+    message:
+        "Last mapping on the previously generated sequence."
+    threads:6    
+    input:
+        #Picard = rules.get_picard.output.Picard ,
+        R1_trimmed = rules.trim_fastq.output.R1_trimmed ,
+        R2_trimmed = rules.trim_fastq.output.R2_trimmed ,
+    output:
+        BAM_sorted = result_repository + "BAM_FINAL/{sample}.bam"
+    run:
+        shell("bwa mem -t 6 -O 10 -E 2 temp/{wildcards.sample} {input.R1_trimmed} {input.R2_trimmed} > temp/{wildcards.sample}_temp.sam")
+        shell("samtools view -b temp/{wildcards.sample}_temp.sam > temp/{wildcards.sample}_unprocessed.bam")
+        shell("rm temp/{wildcards.sample}_temp.sam")
+        shell("samtools sort temp/{wildcards.sample}_unprocessed.bam -o {output}")
+        shell("rm temp/{wildcards.sample}_unprocessed.bam")
+        shell("samtools index {output}")        
