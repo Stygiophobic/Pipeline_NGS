@@ -39,15 +39,16 @@ rule output_pipeline:
         #R1_trimmed =  expand(result_repository + "FASTQ_TRIMM/{sample}_R1_trimmed.fastq",sample=SAMPLE_LIST) ,
         #R2_trimmed =  expand(result_repository + "FASTQ_TRIMM/{sample}_R2_trimmed.fastq",sample=SAMPLE_LIST) ,
         #SAM = expand(result_repository + "SAM/{sample}.sam",sample=SAMPLE_LIST),
-        count_premapping = expand(result_repository + "COUNT_MAPPING/{sample}_premapping.csv",sample=SAMPLE_LIST) ,
-        sum_premapping = result_repository + "MAPPING_RESULT/premapping_result.csv",
-        SAM_SUBTYPE = expand(result_repository + "SAM_SUBTYPE/{sample}.sam",sample=SAMPLE_LIST,subtype=SUBTYPE),
-        annot_BVIC = "annot/BVIC_Malaysia2506.dict" ,
-        annot_BYAM = "annot/BYAM_Florida4.dict" ,
-        annot_H3N2 = "annot/H3N2_Perth16.dict" ,
-        annot_H1N1 = "annot/pH1N1_California07.dict" ,
-        BAM = expand(result_repository + "BAM_SUBTYPE/{sample}.bam",sample=SAMPLE_LIST) ,
-
+        #count_premapping = expand(result_repository + "COUNT_MAPPING/{sample}_premapping.csv",sample=SAMPLE_LIST) ,
+        #sum_premapping = result_repository + "MAPPING_RESULT/premapping_result.csv",
+        #SAM_SUBTYPE = expand(result_repository + "SAM_SUBTYPE/{sample}.sam",sample=SAMPLE_LIST,subtype=SUBTYPE),
+        #annot_BVIC = "annot/BVIC_Malaysia2506.dict" ,
+        #annot_BYAM = "annot/BYAM_Florida4.dict" ,
+        #annot_H3N2 = "annot/H3N2_Perth16.dict" ,
+        #annot_H1N1 = "annot/pH1N1_California07.dict" ,
+        #BAM = expand(result_repository + "BAM_SUBTYPE/{sample}.bam",sample=SAMPLE_LIST) ,
+        fasta = expand("temp/{sample}.fasta",sample=SAMPLE_LIST) ,
+        cons_annot = expand("annot/{sample}.dict",sample=SAMPLE_LIST) ,
         #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
         #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
         #T_G = "tool/TrimGalore-0.6.5/trim_galore" ,
@@ -316,9 +317,25 @@ rule sam_to_bam_subtype:
 
 
 rule create_cons:
+    message:
+        "Create a new consensus reference for each sample."
     input:
         annot_BVIC = rules.use_picard.output.annot_BVIC,
         annot_BYAM = rules.use_picard.output.annot_BYAM,
         annot_H1N1 = rules.use_picard.output.annot_H1N1,
         annot_H3N2 = rules.use_picard.output.annot_H3N2,
+        BAM = rules.sam_to_bam_subtype.output.BAM ,
+        sum_premapping = rules.concatenate_premapping.output.sum_premapping ,
+        Picard = rules.get_picard.output.Picard
+
+    output:
+        fasta = "temp/{sample}.fasta" ,
+        cons_annot = "annot/{sample}.dict" ,
+    run:
+        table_subtype=pd.read_csv(input.sum_premapping,sep=";",header=0)  
+        table_subtype = table_subtype.loc[table_subtype['SAMPLE'] == wildcards.sample]
+        SubType = table_subtype['SUBTYPE'].values[0]
+        shell("samtools mpileup -u -d 1000 -f mapping/subtype_mapping/{SubType}.fasta {input.BAM} | bcftools call --ploidy 1 -c | vcfutils.pl vcf2fq | seqtk seq -a -  > {output.fasta}")
+        shell("bwa index -p temp/ {output.fasta}")
+        shell("java -jar {input.Picard} CreateSequenceDictionary R={output.fasta} O={output.cons_annot}")
 

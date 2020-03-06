@@ -50,4 +50,4 @@ samtools view -S /srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/SAM/S
 
 
 samtools mpileup -u -d 1000 -f mapping/subtype_mapping/BVIC_Malaysia2506.fasta /srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/BAM_SUBTYPE/S20119_S50.bam \
-| bcftools call --ploidy 1 -c | vcfutils.pl vcf2fq   > mdr.txt
+| bcftools call --ploidy 1 -c | vcfutils.pl vcf2fq | seqtk seq -a -  > mdr.txt
