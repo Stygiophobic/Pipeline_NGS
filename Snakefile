@@ -337,7 +337,7 @@ rule create_cons:
         table_subtype = table_subtype.loc[table_subtype['SAMPLE'] == wildcards.sample]
         SubType = table_subtype['SUBTYPE'].values[0]
         shell("samtools mpileup -u -d 1000 -f mapping/subtype_mapping/{SubType}.fasta {input.BAM} | bcftools call --ploidy 1 -c | vcfutils.pl vcf2fq | seqtk seq -a -  > {output.fasta}")
-        shell("bwa index -p temp/ {output.fasta}")
+        shell("bwa index -p temp/{wildcards.sample} {output.fasta}")
         shell("java -jar {input.Picard} CreateSequenceDictionary R={output.fasta} O={output.cons_annot}")
 
 rule consensus_mapping:
@@ -348,6 +348,7 @@ rule consensus_mapping:
         #Picard = rules.get_picard.output.Picard ,
         R1_trimmed = rules.trim_fastq.output.R1_trimmed ,
         R2_trimmed = rules.trim_fastq.output.R2_trimmed ,
+        fasta = rules.create_cons.output.fasta
     output:
         BAM_sorted = result_repository + "BAM_FINAL/{sample}.bam"
     run:
