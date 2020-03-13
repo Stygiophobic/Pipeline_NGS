@@ -49,7 +49,8 @@ rule output_pipeline:
         #BAM = expand(result_repository + "BAM_SUBTYPE/{sample}.bam",sample=SAMPLE_LIST) ,
         #fasta = expand("temp/{sample}.fasta",sample=SAMPLE_LIST) ,
         #cons_annot = expand("annot/{sample}.dict",sample=SAMPLE_LIST) ,
-        BAM_sorted = expand(result_repository + "BAM_FINAL/{sample}.bam",sample=SAMPLE_LIST) ,
+        #BAM_sorted = expand(result_repository + "BAM_FINAL/{sample}.bam",sample=SAMPLE_LIST) ,
+        varcall = expand(result_repository + "VARCALL/{sample}.vcf",sample=SAMPLE_LIST) ,
         #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
         #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
         #T_G = "tool/TrimGalore-0.6.5/trim_galore" ,
@@ -337,7 +338,7 @@ rule create_cons:
         table_subtype = table_subtype.loc[table_subtype['SAMPLE'] == wildcards.sample]
         SubType = table_subtype['SUBTYPE'].values[0]
         shell("samtools mpileup -u -d 1000 -f mapping/subtype_mapping/{SubType}.fasta {input.BAM} | bcftools call --ploidy 1 -c | vcfutils.pl vcf2fq | seqtk seq -a -  > {output.fasta}")
-        shell("bwa index -p temp/ {output.fasta}")
+        shell("bwa index -p temp/{wildcards.sample} {output.fasta}")
         shell("java -jar {input.Picard} CreateSequenceDictionary R={output.fasta} O={output.cons_annot}")
 
 rule consensus_mapping:
@@ -348,6 +349,7 @@ rule consensus_mapping:
         #Picard = rules.get_picard.output.Picard ,
         R1_trimmed = rules.trim_fastq.output.R1_trimmed ,
         R2_trimmed = rules.trim_fastq.output.R2_trimmed ,
+        fasta = rules.create_cons.output.fasta
     output:
         BAM_sorted = result_repository + "BAM_FINAL/{sample}.bam"
     run:
@@ -357,3 +359,27 @@ rule consensus_mapping:
         shell("samtools sort temp/{wildcards.sample}_unprocessed.bam -o {output}")
         shell("rm temp/{wildcards.sample}_unprocessed.bam")
         shell("samtools index {output}")        
+
+rule download_NVC:
+    message:
+        "Download naive Variant Caller from github if needed."
+    output:
+        NVC = "tool/nvc-master/nvc/naive_variant_caller.py"
+    shell:
+        """
+        wget -P tool/ https://github.com/blankenberg/nvc/archive/master.zip
+        rm tool/master.zip
+        """
+
+
+rule variant_calling:
+    message:
+        "Performing Variant Calling using naive variant caller tool."
+    input:
+        BAM_sorted = rules.consensus_mapping.output.BAM_sorted ,
+        fasta = rules.create_cons.output.fasta ,
+        NVC = rules.download_NVC.output.NVC
+    output:
+        varcall = result_repository + "VARCALL/{sample}.vcf"
+    run:
+        shell("{input.NVC} -d 20 -q 20 -m 20 -p 1 -b {input.BAM_sorted} -i {input.BAM_sorted}.bai -o {output} -r {input.fasta}")        
