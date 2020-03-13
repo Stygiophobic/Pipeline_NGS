@@ -51,3 +51,7 @@ samtools view -S /srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/SAM/S
 
 samtools mpileup -u -d 1000 -f mapping/subtype_mapping/BVIC_Malaysia2506.fasta /srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/BAM_SUBTYPE/S20119_S50.bam \
 | bcftools call --ploidy 1 -c | vcfutils.pl vcf2fq | seqtk seq -a -  > mdr.txt
+
+#Bedtools coverage
+bedtools genomecov -ibam S20121_S52_sorted.bam -d -strand -  > COV_S20121_S52_reverse.txt
+bedtools genomecov -ibam S20121_S52_sorted.bam -d -strand +  > COV_S20121_S52_forward.txt
