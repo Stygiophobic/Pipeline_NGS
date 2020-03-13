@@ -1,0 +1,30 @@
+Bootstrap: docker
+From: ubuntu:18.04
+Include: bash
+
+%post
+    apt update
+    apt install -y wget
+    apt install -y curl
+    apt install -y bwa
+    apt install -y samtools
+    apt install -y bcftools
+    apt install -y default-jre
+    apt install -y libjbzip2-java
+    apt install -y bedtools
+    apt install -y seqtk
+    #apt install -y libsam-java
+    apt install -y fastqc
+    apt install -y python3
+    apt install -y python3-pip
+    pip3 install --upgrade pip
+    pip3 install pandas
+    pip3 install biopython
+    pip3 install snakemake
+    pip3 install cutadapt
+    apt install -y unzip
+    apt install -y python2.7 python-pip
+    pip2 install pyBamParser
+    pip2 install pyBamTools
+    
+
