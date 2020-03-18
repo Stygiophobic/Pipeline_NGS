@@ -51,6 +51,7 @@ rule output_pipeline:
         #cons_annot = expand("annot/{sample}.dict",sample=SAMPLE_LIST) ,
         #BAM_sorted = expand(result_repository + "BAM_FINAL/{sample}.bam",sample=SAMPLE_LIST) ,
         varcall = expand(result_repository + "VARCALL/{sample}.vcf",sample=SAMPLE_LIST) ,
+        gatk = "tool/gatk-4.1.5.0/gatk"
         #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
         #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
         #T_G = "tool/TrimGalore-0.6.5/trim_galore" ,
@@ -382,4 +383,17 @@ rule variant_calling:
     output:
         varcall = result_repository + "VARCALL/{sample}.vcf"
     run:
-        shell("{input.NVC} -d 20 -q 20 -m 20 -p 1 -b {input.BAM_sorted} -i {input.BAM_sorted}.bai -o {output} -r {input.fasta}")        
+        shell("{input.NVC} -d 20 -q 20 -m 20 -p 1 -b {input.BAM_sorted} -i {input.BAM_sorted}.bai -o {output} -r {input.fasta}")
+
+rule get_gatk:
+    message:
+        "Download GATK if needed."
+    output:
+        gatk = "tool/gatk-4.1.5.0/gatk"
+    shell:
+        """
+        wget -P tool/ https://github.com/broadinstitute/gatk/releases/download/4.1.5.0/gatk-4.1.5.0.zip
+        unzip tool/gatk-4.1.5.0.zip -d tool/
+        chmod +x tool/gatk-4.1.5.0/gatk
+        rm tool/gatk-4.1.5.0.zip
+        """            
