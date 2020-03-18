@@ -49,8 +49,9 @@ rule output_pipeline:
         #BAM = expand(result_repository + "BAM_SUBTYPE/{sample}.bam",sample=SAMPLE_LIST) ,
         #fasta = expand("temp/{sample}.fasta",sample=SAMPLE_LIST) ,
         #cons_annot = expand("annot/{sample}.dict",sample=SAMPLE_LIST) ,
-        #BAM_sorted = expand(result_repository + "BAM_FINAL/{sample}.bam",sample=SAMPLE_LIST) ,
-        varcall = expand(result_repository + "VARCALL/{sample}.vcf",sample=SAMPLE_LIST) ,
+        BAM_sorted = expand(result_repository + "BAM_FINAL/{sample}.bam",sample=SAMPLE_LIST) ,
+        vcf = expand(result_repository + "VARCALL/{sample}_gatk.vcf",sample=SAMPLE_LIST) ,
+        #A delete? #varcall = expand(result_repository + "VARCALL/{sample}.vcf",sample=SAMPLE_LIST) ,
         gatk = "tool/gatk-4.1.5.0/gatk"
         #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
         #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
@@ -396,4 +397,36 @@ rule get_gatk:
         unzip tool/gatk-4.1.5.0.zip -d tool/
         chmod +x tool/gatk-4.1.5.0/gatk
         rm tool/gatk-4.1.5.0.zip
-        """            
+        """       
+rule gatk_varcall:
+    message:
+        "Proccessing to the variant calling using gatk tool."
+    input:
+        gatk = rules.get_gatk.output.gatk ,
+        Picard = rules.get_picard.output.Picard ,
+        BAM_sorted = rules.consensus_mapping.output.BAM_sorted ,
+        fasta = rules.create_cons.output.fasta ,
+    output:
+        vcf = result_repository + "VARCALL/{sample}_gatk.vcf"
+    shell:
+        """
+        rm temp/{wildcards.sample}.dict
+        java -jar {input.Picard} CreateSequenceDictionary R= {input.fasta} O= temp/{wildcards.sample}.dict
+        java -jar {input.Picard} AddOrReplaceReadGroups \
+            I={input.BAM_sorted} \
+            O=temp/{wildcards.sample}_annoted.bam \
+            RGID=4 \
+            RGLB=lib1 \
+            RGPL=illumina \
+            RGPU=unit1 \
+            RGSM=20
+        samtools index temp/{wildcards.sample}_annoted.bam
+        samtools faidx {input.fasta}
+        {input.gatk} --java-options "-Xmx15g" HaplotypeCaller  \
+            -R {input.fasta} \
+            -I temp/{wildcards.sample}_annoted.bam \
+            -O temp/{wildcards.sample}.vcf.gz
+        gunzip -c temp/{wildcards.sample}.vcf.gz > {output.vcf}   
+        rm temp/{wildcards.sample}.dict
+        """    
+
