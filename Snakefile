@@ -52,7 +52,8 @@ rule output_pipeline:
         BAM_sorted = expand(result_repository + "BAM_FINAL/{sample}.bam",sample=SAMPLE_LIST) ,
         vcf = expand(result_repository + "VARCALL/{sample}_gatk.vcf",sample=SAMPLE_LIST) ,
         #A delete? #varcall = expand(result_repository + "VARCALL/{sample}.vcf",sample=SAMPLE_LIST) ,
-        gatk = "tool/gatk-4.1.5.0/gatk"
+        gatk = "tool/gatk-4.1.5.0/gatk" ,
+        cons_seq = expand(result_repository + "CONS_SEQ/{sample}.fasta" ,sample=SAMPLE_LIST) ,
         #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
         #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
         #T_G = "tool/TrimGalore-0.6.5/trim_galore" ,
@@ -430,3 +431,22 @@ rule gatk_varcall:
         rm temp/{wildcards.sample}.dict
         """    
 
+rule create_final_seq:
+    message:
+        "Generate final consensus sequence using R."
+    input:
+        vcf = rules.gatk_varcall.output.vcf ,
+        fasta = rules.create_cons.output.fasta ,
+    output:
+        cons_seq = result_repository + "CONS_SEQ/{sample}.fasta"
+    params:
+        path_samplesheet = samplefile    
+    shell:        
+        """
+        line_header=`grep  -n "#CHROM" {input.vcf} | cut -f1 -d:`
+        line_remove=$(($line_header-1))
+        sed "1,${{line_remove}}d" {input.vcf} | sed 's/#//' > temp/{wildcards.sample}_R.vcf
+        Rscript script/read_varcall.R temp/{wildcards.sample}_R.vcf {input.fasta} {params.path_samplesheet} {wildcards.sample} temp/{wildcards.sample}_final.fasta
+        sed '1d' temp/{wildcards.sample}_final.fasta > {output} 
+        """
+           
