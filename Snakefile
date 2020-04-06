@@ -21,6 +21,9 @@ SAMPLEFILE_NUMBER=len(SAMPLE_LIST)
 SUBTYPE=['BVIC_Malaysia2506','BYAM_Florida4','pH1N1_California07','H3N2_Perth16']
 dict_subtype={}
 
+#WILDCARD INDEX:
+INDEX=['amb','ann','bwt','pac','sa']
+
 print("\nPIPELINE INFORMATION:\n")
 if (SAMPLEFILE_NUMBER<SAMPLE_NUMBER):
     print("WARNING:More samples in fastq directory than samplefile. Please verify the samplefile.\n")
@@ -49,19 +52,37 @@ rule output_pipeline:
         #BAM = expand(result_repository + "BAM_SUBTYPE/{sample}.bam",sample=SAMPLE_LIST) ,
         #fasta = expand("temp/{sample}.fasta",sample=SAMPLE_LIST) ,
         #cons_annot = expand("annot/{sample}.dict",sample=SAMPLE_LIST) ,
-        BAM_sorted = expand(result_repository + "BAM_FINAL/{sample}.bam",sample=SAMPLE_LIST) ,
-        vcf = expand(result_repository + "VARCALL/{sample}_gatk.vcf",sample=SAMPLE_LIST) ,
-        #A delete? #varcall = expand(result_repository + "VARCALL/{sample}.vcf",sample=SAMPLE_LIST) ,
-        gatk = "tool/gatk-4.1.5.0/gatk" ,
+        #BAM_sorted = expand(result_repository + "BAM_FINAL/{sample}.bam",sample=SAMPLE_LIST) ,
+        #vcf = expand(result_repository + "VARCALL/{sample}_gatk.vcf",sample=SAMPLE_LIST) ,
+        #gatk = "tool/gatk-4.1.5.0/gatk" ,
         cons_seq = expand(result_repository + "CONS_SEQ/{sample}.fasta" ,sample=SAMPLE_LIST) ,
+        recomb = expand( result_repository + "RECOMB/{sample}_count.tsv" , sample=SAMPLE_LIST) ,
         #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
         #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
         #T_G = "tool/TrimGalore-0.6.5/trim_galore" ,
-        #BBMAP = "tool/bbmap/bbmap.sh",       
+        #BBMAP = "tool/bbmap/bbmap.sh",
+        #fasta_index_subtype = expand("mapping/pre_mapping/influenza_subtype.{index}",index=INDEX), 
+        #fasta_index_segment = expand("mapping/recombinant_searching/influenza_segment.{index}",index=INDEX)   ,      
 
 
 
 #control samplefile and fastq's repository contents. Copy procceed fastq.
+
+rule bwa_ref_index:
+    message:
+        "indexing fasta file."
+    input:
+        segment_fasta = "mapping/recombinant_searching/influenza_segment.fasta",
+        subtype_fasta = "mapping/pre_mapping/influenza_subtype.fasta"
+    output:
+        fasta_index_subtype = expand("mapping/pre_mapping/influenza_subtype.{index}",index=INDEX) ,
+        fasta_index_segment = expand("mapping/recombinant_searching/influenza_segment.{index}",index=INDEX)      
+    shell: 
+        """
+        bwa index -p mapping/pre_mapping/influenza_subtype mapping/pre_mapping/influenza_subtype.fasta
+        bwa index -p mapping/recombinant_searching/influenza_segment mapping/recombinant_searching/influenza_segment.fasta 
+        """  
+
 rule fastq_copy:
     message:
         "Checking samplefile, and decompress fastq."  
@@ -147,7 +168,7 @@ rule create_index:
 rule clean_fastq:
     message:
         "Removing human reads from fastq."   
-    #threads:1        
+    #threads:6        
     resources: mem_gb= 20
     input:
         unzip_fastq_R1 = rules.fastq_unzip.output.unzip_fastq_R1,
@@ -164,7 +185,7 @@ rule clean_fastq:
         """
         {input.BBMAP} in1={input.unzip_fastq_R1} in2={input.unzip_fastq_R2}  \
         basename={rules.clean_fastq.params.path_human}{wildcards.sample}_%.fastq outu1={output.R1_cleaned} outu2={output.R2_cleaned} \
-        path=temp/ 
+        path=temp/ -Xmx18000m
         """        
 
 #Downloading the trimgalore binary if needed
@@ -212,12 +233,12 @@ rule premapping_align:
     input:
         R1_trimmed = rules.trim_fastq.output.R1_trimmed ,
         R2_trimmed = rules.trim_fastq.output.R2_trimmed ,
+        fasta_index_subtype = expand("mapping/pre_mapping/influenza_subtype.{index}",index=INDEX), 
     output:
         SAM = result_repository + "SAM/{sample}.sam"
     shell:
         """
-        bwa index -p temp/influenza_subtype mapping/pre_mapping/influenza_subtype.fasta
-        bwa mem -t 4 -O 10 -E 2 temp/influenza_subtype {input.R1_trimmed} {input.R2_trimmed} > {output}
+        bwa mem -t 4 -O 10 -E 2 mapping/pre_mapping/influenza_subtype {input.R1_trimmed} {input.R2_trimmed} > {output}
         """
 
 rule premapping_count:  
@@ -363,30 +384,6 @@ rule consensus_mapping:
         shell("rm temp/{wildcards.sample}_unprocessed.bam")
         shell("samtools index {output}")        
 
-rule download_NVC:
-    message:
-        "Download naive Variant Caller from github if needed."
-    output:
-        NVC = "tool/nvc-master/nvc/naive_variant_caller.py"
-    shell:
-        """
-        wget -P tool/ https://github.com/blankenberg/nvc/archive/master.zip
-        rm tool/master.zip
-        """
-
-
-rule variant_calling:
-    message:
-        "Performing Variant Calling using naive variant caller tool."
-    input:
-        BAM_sorted = rules.consensus_mapping.output.BAM_sorted ,
-        fasta = rules.create_cons.output.fasta ,
-        NVC = rules.download_NVC.output.NVC
-    output:
-        varcall = result_repository + "VARCALL/{sample}.vcf"
-    run:
-        shell("{input.NVC} -d 20 -q 20 -m 20 -p 1 -b {input.BAM_sorted} -i {input.BAM_sorted}.bai -o {output} -r {input.fasta}")
-
 rule get_gatk:
     message:
         "Download GATK if needed."
@@ -411,7 +408,7 @@ rule gatk_varcall:
         vcf = result_repository + "VARCALL/{sample}_gatk.vcf"
     shell:
         """
-        rm temp/{wildcards.sample}.dict
+        #rm temp/{wildcards.sample}.dict
         java -jar {input.Picard} CreateSequenceDictionary R= {input.fasta} O= temp/{wildcards.sample}.dict
         java -jar {input.Picard} AddOrReplaceReadGroups \
             I={input.BAM_sorted} \
@@ -449,4 +446,21 @@ rule create_final_seq:
         Rscript script/read_varcall.R temp/{wildcards.sample}_R.vcf {input.fasta} {params.path_samplesheet} {wildcards.sample} temp/{wildcards.sample}_final.fasta
         sed '1d' temp/{wildcards.sample}_final.fasta > {output} 
         """
-           
+
+rule recombinant_searching:
+    message:
+        "Align trimmed fastq on each segment of each influenza subtype."
+    input:
+        R1_trimmed = rules.trim_fastq.output.R1_trimmed ,
+        R2_trimmed = rules.trim_fastq.output.R2_trimmed ,
+        segment_index = rules.bwa_ref_index.output.fasta_index_segment
+    output:   
+        recomb =  result_repository + "RECOMB/{sample}_count.tsv" , 
+    shell:
+        """    
+        bwa mem -t 4 -O 10 -E 2 mapping/recombinant_searching/influenza_segment {input.R1_trimmed} {input.R2_trimmed} > temp/{wildcards.sample}.sam
+        samtools view -S temp/{wildcards.sample}.sam | cut -f 3 | sort | uniq -c | awk '{{printf("%s\\t%s\\n", $2, $1)}}' > {output.recomb}
+        rm temp/{wildcards.sample}.sam
+        """   
+
+ 

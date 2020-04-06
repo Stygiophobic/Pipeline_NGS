@@ -5,4 +5,8 @@ BMtagger/*
 tool/*
 annot/*
 mapping/subtype_mapping/*.fai
+!mapping/recombinant_searching/*.fasta
+mapping/recombinant_searching/
+!mapping/pre_mapping/*.fasta
+mapping/pre_mapping/*
 
