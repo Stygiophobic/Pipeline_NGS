@@ -56,7 +56,8 @@ rule output_pipeline:
         #vcf = expand(result_repository + "VARCALL/{sample}_gatk.vcf",sample=SAMPLE_LIST) ,
         #gatk = "tool/gatk-4.1.5.0/gatk" ,
         cons_seq = expand(result_repository + "CONS_SEQ/{sample}.fasta" ,sample=SAMPLE_LIST) ,
-        recomb = expand( result_repository + "RECOMB/{sample}_count.tsv" , sample=SAMPLE_LIST) ,
+        #recomb = expand( result_repository + "RECOMB/{sample}_count.tsv" , sample=SAMPLE_LIST) ,
+        recomb_sum =  result_repository + "REPORT/recomb_matrix.tsv" ,
         #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
         #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
         #T_G = "tool/TrimGalore-0.6.5/trim_galore" ,
@@ -463,4 +464,15 @@ rule recombinant_searching:
         rm temp/{wildcards.sample}.sam
         """   
 
+rule recombinant_summary:
+    message:
+        "Resume all recombinant data in one dataframe."
+    input:
+        recomb = expand( result_repository + "RECOMB/{sample}_count.tsv" , sample=SAMPLE_LIST) ,
+    output:
+        recomb_sum =  result_repository + "REPORT/recomb_matrix.tsv"
+    params:
+        path_recomb = result_repository + "RECOMB/"        
+    shell:
+        "Rscript script/recomb_analysis.R {params.path_recomb} {output} "
  
