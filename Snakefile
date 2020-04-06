@@ -57,13 +57,16 @@ rule output_pipeline:
         #gatk = "tool/gatk-4.1.5.0/gatk" ,
         cons_seq = expand(result_repository + "CONS_SEQ/{sample}.fasta" ,sample=SAMPLE_LIST) ,
         #recomb = expand( result_repository + "RECOMB/{sample}_count.tsv" , sample=SAMPLE_LIST) ,
-        recomb_sum =  result_repository + "REPORT/recomb_matrix.tsv" ,
         #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
         #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
         #T_G = "tool/TrimGalore-0.6.5/trim_galore" ,
         #BBMAP = "tool/bbmap/bbmap.sh",
         #fasta_index_subtype = expand("mapping/pre_mapping/influenza_subtype.{index}",index=INDEX), 
-        #fasta_index_segment = expand("mapping/recombinant_searching/influenza_segment.{index}",index=INDEX)   ,      
+        #fasta_index_segment = expand("mapping/recombinant_searching/influenza_segment.{index}",index=INDEX) 
+        #REPORT  ,
+        fastq_sum =  result_repository + "REPORT/fastq_summary.tsv",
+        recomb_sum =  result_repository + "REPORT/recomb_matrix.tsv" ,
+      
 
 
 
@@ -188,6 +191,37 @@ rule clean_fastq:
         basename={rules.clean_fastq.params.path_human}{wildcards.sample}_%.fastq outu1={output.R1_cleaned} outu2={output.R2_cleaned} \
         path=temp/ -Xmx18000m
         """        
+
+rule count_fastq_qc:
+    message:
+        "Counting human read filtrated for each sample."
+    input:
+        fastq_R1 = expand(result_repository + "FASTQ/{sample}_R1.fastq.gz",sample=SAMPLE_LIST),
+        R1_cleaned = expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
+        HUMAN = expand(result_repository + "FASTQ_CLEANED/{sample}_hg19.fastq",sample=SAMPLE_LIST),
+    output:
+        fastq_sum =  result_repository + "REPORT/fastq_summary.tsv"
+    params:
+        preqc =  result_repository +  "FASTQ/" ,
+        postqc =  result_repository +  "FASTQ_CLEANED/"  ,
+        human =  result_repository +  "FASTQ_CLEANED/"    ,  
+    shell: 
+        """
+        #clean
+        wc -l  {params.postqc}*R1_cleaned.fastq | head -n -1 | tr -s ' ' ';' > temp/clean_temp.txt
+        sed 's/^.//' temp/clean_temp.txt > temp/POSTQC_count.txt
+        rm temp/clean_temp.txt
+        #human
+        wc -l  {params.human}*_hg19.fastq | head -n -1 | tr -s ' ' ';' > temp/human_temp.txt
+        sed 's/^.//' temp/human_temp.txt > temp/HUMAN_count.txt
+        rm temp/human_temp.txt
+        #preqc
+        wc -l  {params.preqc}*R1.fastq | head -n -1 | tr -s ' ' ';' > temp/preqc_temp.txt
+        sed 's/^.//' temp/preqc_temp.txt > temp/PREQC_count.txt
+        rm temp/preqc_temp.txt
+        Rscript script/fastq_summary.R {output}
+        """       
+     
 
 #Downloading the trimgalore binary if needed
 rule get_trimgalore:
