@@ -1,0 +1,247 @@
+#!usr/bin/en python3
+import os
+import pandas as pd
+
+configfile:"config.yaml"
+
+#Get information from config file
+result_repository=config['Result_Repository']
+fastq_repository_name=config['Project_folder']
+samplefile=config['Samplesheet_Location']
+
+#Get sample mapping on any Flu subtype
+table_mapping=pd.read_csv(result_repository +"MAPPING_RESULT/premapping_result.csv" ,sep=";",header=0,) 
+table_mapping = table_mapping.loc[table_mapping['SUBTYPE'] != "UNMAPPED"]
+SAMPLE_LIST=list(table_mapping['SAMPLE'])
+
+#WILCARD SUBTYPE:
+SUBTYPE=['BVIC_Malaysia2506','BYAM_Florida4','pH1N1_California07','H3N2_Perth16']
+dict_subtype={}
+
+#WILDCARD INDEX:
+INDEX=['amb','ann','bwt','pac','sa']
+
+
+#Expected files at the end of the analysis.
+rule output_pipeline:
+    input:
+        SAM_SUBTYPE = expand(result_repository + "SAM_SUBTYPE/{sample}.sam",sample=SAMPLE_LIST,subtype=SUBTYPE),
+        #annot_BVIC = "annot/BVIC_Malaysia2506.dict" ,
+        #annot_BYAM = "annot/BYAM_Florida4.dict" ,
+        #annot_H3N2 = "annot/H3N2_Perth16.dict" ,
+        #annot_H1N1 = "annot/pH1N1_California07.dict" ,
+        #BAM = expand(result_repository + "BAM_SUBTYPE/{sample}.bam",sample=SAMPLE_LIST) ,
+        #fasta = expand("temp/{sample}.fasta",sample=SAMPLE_LIST) ,
+        #cons_annot = expand("annot/{sample}.dict",sample=SAMPLE_LIST) ,
+        #BAM_sorted = expand(result_repository + "BAM_FINAL/{sample}.bam",sample=SAMPLE_LIST) ,
+        #vcf = expand(result_repository + "VARCALL/{sample}_gatk.vcf",sample=SAMPLE_LIST) ,
+        #gatk = "tool/gatk-4.1.5.0/gatk" ,
+        #cons_seq = expand(result_repository + "CONS_SEQ/{sample}.fasta" ,sample=SAMPLE_LIST) ,
+        #recomb = expand( result_repository + "RECOMB/{sample}_count.tsv" , sample=SAMPLE_LIST) ,
+        #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
+        #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
+        #T_G = "tool/TrimGalore-0.6.5/trim_galore" ,
+        #BBMAP = "tool/bbmap/bbmap.sh",
+        #fasta_index_subtype = expand("mapping/pre_mapping/influenza_subtype.{index}",index=INDEX), 
+        #fasta_index_segment = expand("mapping/recombinant_searching/influenza_segment.{index}",index=INDEX) 
+        #REPORT  ,
+        #fastq_sum =  result_repository + "REPORT/fastq_summary.tsv",
+        #recomb_sum =  result_repository + "REPORT/recomb_matrix.tsv" ,
+
+
+rule subtype_mapping:
+    message:
+        "Alignement on the assigned subtype."
+    threads: 4    
+    input:        
+        R1_trimmed = result_repository + "FASTQ_TRIMM/{sample}_R1_trimmed.fastq",
+        R2_trimmed = result_repository + "FASTQ_TRIMM/{sample}_R2_trimmed.fastq",
+        sum_premapping = result_repository + "MAPPING_RESULT/premapping_result.csv"
+    output:
+        SAM = result_repository + "SAM_SUBTYPE/{sample}.sam"
+    params:
+        subtype=SUBTYPE
+    run:
+        #Read the results of the premapping to get the subtype
+        table_subtype=pd.read_csv(input.sum_premapping,sep=";",header=0)  
+        table_subtype = table_subtype.loc[table_subtype['SAMPLE'] == wildcards.sample]
+        SubType = table_subtype['SUBTYPE'].values[0]
+        #BWA mem allignement
+        shell("bwa index -p temp/{SubType} mapping/subtype_mapping/{SubType}.fasta")
+        shell("bwa mem -t {threads} -O 10 -E 2 temp/{SubType} {input.R1_trimmed} {input.R2_trimmed} > {output}")
+
+rule get_picard:
+    message:
+        "Download picard tool if necessary."
+    output:
+        Picard = "tool/picard.jar"
+    shell:
+        """
+        wget -P tool/ https://github.com/broadinstitute/picard/releases/download/2.22.0/picard.jar
+        """        
+
+rule use_picard:
+    message:
+        "do un truc que je comprends pas"
+    input:
+        Picard = rules.get_picard.output.Picard
+    output:
+        annot_BVIC = "annot/BVIC_Malaysia2506.dict" ,
+        annot_BYAM = "annot/BYAM_Florida4.dict" ,
+        annot_H3N2 = "annot/H3N2_Perth16.dict" ,
+        annot_H1N1 = "annot/pH1N1_California07.dict" ,
+    shell:
+        """
+        java -jar {input} CreateSequenceDictionary R= mapping/subtype_mapping/BVIC_Malaysia2506.fasta O= annot/BVIC_Malaysia2506.dict
+        java -jar {input} CreateSequenceDictionary R= mapping/subtype_mapping/BYAM_Florida4.fasta O= annot/BYAM_Florida4.dict
+        java -jar {input} CreateSequenceDictionary R= mapping/subtype_mapping/H3N2_Perth16.fasta O= annot/H3N2_Perth16.dict
+        java -jar {input} CreateSequenceDictionary R= mapping/subtype_mapping/pH1N1_California07.fasta O= annot/pH1N1_California07.dict
+        """        
+
+rule sam_to_bam_subtype:
+    message:
+        "Convert sam from subtype alignment into bam."
+    input:
+        SAM = rules.subtype_mapping.output.SAM
+    output:
+        BAM = result_repository + "BAM_SUBTYPE/{sample}.bam"
+    shell:
+        """
+        samtools view -b {input} > temp/{wildcards.sample}_unprocessed.bam
+        samtools sort temp/{wildcards.sample}_unprocessed.bam -o {output}
+        rm temp/{wildcards.sample}_unprocessed.bam
+        """        
+
+
+rule create_cons:
+    message:
+        "Create a new consensus reference for each sample."
+    input:
+        annot_BVIC = rules.use_picard.output.annot_BVIC,
+        annot_BYAM = rules.use_picard.output.annot_BYAM,
+        annot_H1N1 = rules.use_picard.output.annot_H1N1,
+        annot_H3N2 = rules.use_picard.output.annot_H3N2,
+        BAM = rules.sam_to_bam_subtype.output.BAM ,
+        sum_premapping = result_repository + "MAPPING_RESULT/premapping_result.csv" ,
+        Picard = rules.get_picard.output.Picard
+
+    output:
+        fasta = "temp/{sample}.fasta" ,
+        cons_annot = "annot/{sample}.dict" ,
+    run:
+        table_subtype=pd.read_csv(input.sum_premapping,sep=";",header=0)  
+        table_subtype = table_subtype.loc[table_subtype['SAMPLE'] == wildcards.sample]
+        SubType = table_subtype['SUBTYPE'].values[0]
+        shell("samtools mpileup -u -d 1000 -f mapping/subtype_mapping/{SubType}.fasta {input.BAM} | bcftools call --ploidy 1 -c | vcfutils.pl vcf2fq | seqtk seq -a -  > {output.fasta}")
+        shell("bwa index -p temp/{wildcards.sample} {output.fasta}")
+        shell("java -jar {input.Picard} CreateSequenceDictionary R={output.fasta} O={output.cons_annot}")
+
+rule consensus_mapping:
+    message:
+        "Last mapping on the previously generated sequence."
+    threads:6    
+    input:
+        #Picard = rules.get_picard.output.Picard ,
+        R1_trimmed = result_repository + "FASTQ_TRIMM/{sample}_R1_trimmed.fastq",
+        R2_trimmed = result_repository + "FASTQ_TRIMM/{sample}_R2_trimmed.fastq",
+        fasta = rules.create_cons.output.fasta
+    output:
+        BAM_sorted = result_repository + "BAM_FINAL/{sample}.bam"
+    run:
+        shell("bwa mem -t 6 -O 10 -E 2 temp/{wildcards.sample} {input.R1_trimmed} {input.R2_trimmed} > temp/{wildcards.sample}_temp.sam")
+        shell("samtools view -b temp/{wildcards.sample}_temp.sam > temp/{wildcards.sample}_unprocessed.bam")
+        shell("rm temp/{wildcards.sample}_temp.sam")
+        shell("samtools sort temp/{wildcards.sample}_unprocessed.bam -o {output}")
+        shell("rm temp/{wildcards.sample}_unprocessed.bam")
+        shell("samtools index {output}")        
+
+rule get_gatk:
+    message:
+        "Download GATK if needed."
+    output:
+        gatk = "tool/gatk-4.1.5.0/gatk"
+    shell:
+        """
+        wget -P tool/ https://github.com/broadinstitute/gatk/releases/download/4.1.5.0/gatk-4.1.5.0.zip
+        unzip tool/gatk-4.1.5.0.zip -d tool/
+        chmod +x tool/gatk-4.1.5.0/gatk
+        rm tool/gatk-4.1.5.0.zip
+        """       
+rule gatk_varcall:
+    message:
+        "Proccessing to the variant calling using gatk tool."
+    input:
+        gatk = rules.get_gatk.output.gatk ,
+        Picard = rules.get_picard.output.Picard ,
+        BAM_sorted = rules.consensus_mapping.output.BAM_sorted ,
+        fasta = rules.create_cons.output.fasta ,
+    output:
+        vcf = result_repository + "VARCALL/{sample}_gatk.vcf"
+    shell:
+        """
+        #rm temp/{wildcards.sample}.dict
+        java -jar {input.Picard} CreateSequenceDictionary R= {input.fasta} O= temp/{wildcards.sample}.dict
+        java -jar {input.Picard} AddOrReplaceReadGroups \
+            I={input.BAM_sorted} \
+            O=temp/{wildcards.sample}_annoted.bam \
+            RGID=4 \
+            RGLB=lib1 \
+            RGPL=illumina \
+            RGPU=unit1 \
+            RGSM=20
+        samtools index temp/{wildcards.sample}_annoted.bam
+        samtools faidx {input.fasta}
+        {input.gatk} --java-options "-Xmx15g" HaplotypeCaller  \
+            -R {input.fasta} \
+            -I temp/{wildcards.sample}_annoted.bam \
+            -O temp/{wildcards.sample}.vcf.gz
+        gunzip -c temp/{wildcards.sample}.vcf.gz > {output.vcf}   
+        rm temp/{wildcards.sample}.dict
+        """    
+
+rule create_final_seq:
+    message:
+        "Generate final consensus sequence using R."
+    input:
+        vcf = rules.gatk_varcall.output.vcf ,
+        fasta = rules.create_cons.output.fasta ,
+    output:
+        cons_seq = result_repository + "CONS_SEQ/{sample}.fasta"
+    params:
+        path_samplesheet = samplefile    
+    shell:        
+        """
+        line_header=`grep  -n "#CHROM" {input.vcf} | cut -f1 -d:`
+        line_remove=$(($line_header-1))
+        sed "1,${{line_remove}}d" {input.vcf} | sed 's/#//' > temp/{wildcards.sample}_R.vcf
+        Rscript script/read_varcall.R temp/{wildcards.sample}_R.vcf {input.fasta} {params.path_samplesheet} {wildcards.sample} temp/{wildcards.sample}_final.fasta
+        sed '1d' temp/{wildcards.sample}_final.fasta > {output} 
+        """
+
+rule recombinant_searching:
+    message:
+        "Align trimmed fastq on each segment of each influenza subtype."
+    input:
+        R1_trimmed = result_repository + "FASTQ_TRIMM/{sample}_R1_trimmed.fastq",
+        R2_trimmed = result_repository + "FASTQ_TRIMM/{sample}_R2_trimmed.fastq",
+        #segment_index = rules.bwa_ref_index.output.fasta_index_segment
+    output:   
+        recomb =  result_repository + "RECOMB/{sample}_count.tsv" , 
+    shell:
+        """    
+        bwa mem -t 4 -O 10 -E 2 mapping/recombinant_searching/influenza_segment {input.R1_trimmed} {input.R2_trimmed} > temp/{wildcards.sample}.sam
+        samtools view -S temp/{wildcards.sample}.sam | cut -f 3 | sort | uniq -c | awk '{{printf("%s\\t%s\\n", $2, $1)}}' > {output.recomb}
+        rm temp/{wildcards.sample}.sam
+        """   
+
+rule recombinant_summary:
+    message:
+        "Resume all recombinant data in one dataframe."
+    input:
+        recomb = expand( result_repository + "RECOMB/{sample}_count.tsv" , sample=SAMPLE_LIST) ,
+    output:
+        recomb_sum =  result_repository + "REPORT/recomb_matrix.tsv"
+    params:
+        path_recomb = result_repository + "RECOMB/"        
+    shell:
+        "Rscript script/recomb_analysis.R {params.path_recomb} {output} "
