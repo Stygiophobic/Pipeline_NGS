@@ -90,7 +90,7 @@ for (i in 1:nrow(table_seq)){
       #position<-561
       info_VCF<-subset(VCF,CHROM==header & POS==position)
       if (nrow(info_VCF)==1){
-        print("Variant Valide")
+        #print("Variant Valide")
         REF<-as.character(info_VCF$REF)
         ALT<-as.character(info_VCF$ALT)
         #if deletion
@@ -130,14 +130,14 @@ translateSEQ<-function(header){
   seq_to_tr<-unlist(seq_to_tr)
   cut_seq<-seq_to_tr[start_trans:stop_trans]
   prot_seq<-translate(seq=tolower(cut_seq),frame=0,numcode = 1,sens="F")
-  stop_pos<-which(prot_seq=="*")-1
+  if ("*" %in% prot_seq) stop_pos<-which(prot_seq=="*")-1 else stop_pos<-as.numeric(length(prot_seq))
   prot_seq<-prot_seq[1:stop_pos]
   final_prot_seq<-paste(prot_seq,collapse = '')
   return(final_prot_seq)
 }
-
+print("test avant trad")
 table_seq$prot_seq<-sapply(table_seq$Header,translateSEQ)
-
+print("test post trad")
 new_header<-as.character(samplesheet$FASTA_OUTPUT[samplesheet$SAMPLE==sample])
 
 
@@ -147,9 +147,11 @@ split_seg<-function(header){
   return(segment)
 }
 
-table_seq$seg_vec<-sapply(table_seq$Header,split_seg)
-table_seq$new_header<-paste0(">",new_header,"_",table_seq$seg_vec)
 
+table_seq$seg_vec<-sapply(table_seq$Header,split_seg)
+print("get segment OK")
+table_seq$new_header<-paste0(">",new_header,"_",table_seq$seg_vec)
+print("Faire nouveau Header OK")
 
 #Nucleic sequences
 if (nrow(table_seq)==8) {
