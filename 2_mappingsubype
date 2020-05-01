@@ -30,23 +30,20 @@ rule output_pipeline:
         #annot_BYAM = "annot/BYAM_Florida4.dict" ,
         #annot_H3N2 = "annot/H3N2_Perth16.dict" ,
         #annot_H1N1 = "annot/pH1N1_California07.dict" ,
-        #BAM = expand(result_repository + "BAM_SUBTYPE/{sample}.bam",sample=SAMPLE_LIST) ,
+        BAM = expand(result_repository + "BAM_SUBTYPE/{sample}.bam",sample=SAMPLE_LIST) ,
         #fasta = expand("temp/{sample}.fasta",sample=SAMPLE_LIST) ,
         #cons_annot = expand("annot/{sample}.dict",sample=SAMPLE_LIST) ,
-        #BAM_sorted = expand(result_repository + "BAM_FINAL/{sample}.bam",sample=SAMPLE_LIST) ,
+        BAM_sorted = expand(result_repository + "BAM_FINAL/{sample}.bam",sample=SAMPLE_LIST) ,
         #vcf = expand(result_repository + "VARCALL/{sample}_gatk.vcf",sample=SAMPLE_LIST) ,
         #gatk = "tool/gatk-4.1.5.0/gatk" ,
-        #cons_seq = expand(result_repository + "CONS_SEQ/{sample}.fasta" ,sample=SAMPLE_LIST) ,
+        cons_seq_nuc = expand(result_repository + "CONS_SEQ/{sample}_nuc.fasta" ,sample=SAMPLE_LIST) ,
+        cons_seq_prot = expand(result_repository + "CONS_SEQ/{sample}_prot.fasta" ,sample=SAMPLE_LIST) ,
         #recomb = expand( result_repository + "RECOMB/{sample}_count.tsv" , sample=SAMPLE_LIST) ,
-        #R1_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R1_cleaned.fastq",sample=SAMPLE_LIST),
-        #R2_cleaned =  expand(result_repository + "FASTQ_CLEANED/{sample}_R2_cleaned.fastq",sample=SAMPLE_LIST),
-        #T_G = "tool/TrimGalore-0.6.5/trim_galore" ,
-        #BBMAP = "tool/bbmap/bbmap.sh",
         #fasta_index_subtype = expand("mapping/pre_mapping/influenza_subtype.{index}",index=INDEX), 
         #fasta_index_segment = expand("mapping/recombinant_searching/influenza_segment.{index}",index=INDEX) 
         #REPORT  ,
-        #fastq_sum =  result_repository + "REPORT/fastq_summary.tsv",
-        #recomb_sum =  result_repository + "REPORT/recomb_matrix.tsv" ,
+        recomb_sum =  result_repository + "REPORT/recomb_matrix.tsv" ,
+        cov_file = expand(result_repository + "COV/{sample}_cov.txt" ,sample=SAMPLE_LIST) , 
 
 
 rule subtype_mapping:
@@ -82,7 +79,7 @@ rule get_picard:
 
 rule use_picard:
     message:
-        "do un truc que je comprends pas"
+        "Anotting Genome Ref."
     input:
         Picard = rules.get_picard.output.Picard
     output:
@@ -206,7 +203,8 @@ rule create_final_seq:
         vcf = rules.gatk_varcall.output.vcf ,
         fasta = rules.create_cons.output.fasta ,
     output:
-        cons_seq = result_repository + "CONS_SEQ/{sample}.fasta"
+        cons_seq_nuc = result_repository + "CONS_SEQ/{sample}_nuc.fasta" ,
+        cons_seq_prot = result_repository + "CONS_SEQ/{sample}_prot.fasta"
     params:
         path_samplesheet = samplefile    
     shell:        
@@ -214,9 +212,30 @@ rule create_final_seq:
         line_header=`grep  -n "#CHROM" {input.vcf} | cut -f1 -d:`
         line_remove=$(($line_header-1))
         sed "1,${{line_remove}}d" {input.vcf} | sed 's/#//' > temp/{wildcards.sample}_R.vcf
-        Rscript script/read_varcall.R temp/{wildcards.sample}_R.vcf {input.fasta} {params.path_samplesheet} {wildcards.sample} temp/{wildcards.sample}_final.fasta
-        sed '1d' temp/{wildcards.sample}_final.fasta > {output} 
+        Rscript script/read_varcall.R temp/{wildcards.sample}_R.vcf {input.fasta} {params.path_samplesheet} {wildcards.sample} temp/{wildcards.sample}_nuc.fasta temp/{wildcards.sample}_prot.fasta
+        sed '1d' temp/{wildcards.sample}_nuc.fasta > {output.cons_seq_nuc} 
+        sed '1d' temp/{wildcards.sample}_prot.fasta > {output.cons_seq_prot} 
         """
+
+rule compute_coverage:
+    message:
+        "Compute the coverage of each segments using bedtools."
+    input: 
+        BAM = rules.consensus_mapping.output.BAM_sorted
+    output:
+        cov_file = result_repository + "COV/{sample}_cov.txt" ,    
+    run:
+        shell("bedtools genomecov -ibam {input} -d > temp/{wildcards.sample}_cov.txt ")
+        cov_file=open("temp/"+wildcards.sample+"_cov.txt",'r')
+        output_file=open(output[0],'w')
+        for line in cov_file:
+            output_file.write(wildcards.sample+"\t"+line)
+        output_file.close() 
+        cov_file.close()           
+
+rule cov_summary:
+    message:
+        "concatenate all cov date and produce a summary R table."
 
 rule recombinant_searching:
     message:

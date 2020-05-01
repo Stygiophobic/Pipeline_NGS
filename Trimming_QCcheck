@@ -31,10 +31,11 @@ rule output_pipeline:
     input:
         R1_trimmed =  expand(result_repository + "FASTQ_TRIMM/{sample}_R1_trimmed.fastq",sample=SAMPLE_LIST) ,
         R2_trimmed =  expand(result_repository + "FASTQ_TRIMM/{sample}_R2_trimmed.fastq",sample=SAMPLE_LIST) ,
-        fastq_sum =  result_repository + "REPORT/fastq_summary.tsv",
         SAM = expand(result_repository + "SAM/{sample}.sam",sample=SAMPLE_LIST),
         count_premapping = expand(result_repository + "COUNT_MAPPING/{sample}_premapping.csv",sample=SAMPLE_LIST) ,
-        sum_premapping = result_repository + "MAPPING_RESULT/premapping_result.csv",
+        #REPORT
+        fastq_sum =  result_repository + "REPORT/fastq_summary.tsv",
+        sum_premapping = result_repository + "REPORT/premapping_result.csv",
    
 #control samplefile and fastq's repository contents. Copy procceed fastq.
 rule fastq_copy:
@@ -258,7 +259,7 @@ rule concatenate_premapping:
     run:   
         #Concatenate premaping results        
         list_file=os.listdir(result_repository +  "COUNT_MAPPING/")
-        result=open(result_repository +  "MAPPING_RESULT/" + "premapping_result.csv",'w')
+        result=open(result_repository +  "REPORT/" + "premapping_result.csv",'w')
         result.write("SAMPLE;SUBTYPE\n")
         for file in list_file:
             data=open(result_repository + "COUNT_MAPPING/" + file,'r')
