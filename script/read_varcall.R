@@ -15,8 +15,8 @@ VCF<-read.table(argv[1],sep="\t",header=T)
 fasta<-read.table(argv[2])
 samplesheet<-read.csv2(argv[3])
 sample<-argv[4]
-output<-argv[5]
-
+output_nuc<-argv[5]
+output_prot<-argv[6]
 
 #Prepare VCF
 
@@ -163,7 +163,7 @@ if (nrow(table_seq)==8) {
                 table_seq$new_header[6],table_seq$new_seq[6],
                 table_seq$new_header[7],table_seq$new_seq[7],
                 table_seq$new_header[8],table_seq$new_seq[8])
-  write.table(vec_result,file=output,quote = FALSE,row.names = FALSE)
+  write.table(vec_result,file=output_nuc,quote = FALSE,row.names = FALSE)
 }
 
 if (nrow(table_seq)==7) {
@@ -174,5 +174,29 @@ if (nrow(table_seq)==7) {
                 table_seq$new_header[5],table_seq$new_seq[5],
                 table_seq$new_header[6],table_seq$new_seq[6],
                 table_seq$new_header[7],table_seq$new_seq[7])
-  write.table(vec_result,file=output,quote = FALSE,row.names = FALSE) 
+  write.table(vec_result,file=output_nuc,quote = FALSE,row.names = FALSE) 
+}
+
+#Proteic sequences
+if (nrow(table_seq)==8) {
+  vec_result<-c(table_seq$new_header[1],table_seq$prot_seq[1],
+                table_seq$new_header[2],table_seq$prot_seq[2],
+                table_seq$new_header[3],table_seq$prot_seq[3],
+                table_seq$new_header[4],table_seq$prot_seq[4],
+                table_seq$new_header[5],table_seq$prot_seq[5],
+                table_seq$new_header[6],table_seq$prot_seq[6],
+                table_seq$new_header[7],table_seq$prot_seq[7],
+                table_seq$new_header[8],table_seq$prot_seq[8])
+  write.table(vec_result,file=output_prot,quote = FALSE,row.names = FALSE)
+}
+
+if (nrow(table_seq)==7) {
+  vec_result<-c(table_seq$new_header[1],table_seq$prot_seq[1],
+                table_seq$new_header[2],table_seq$prot_seq[2],
+                table_seq$new_header[3],table_seq$prot_seq[3],
+                table_seq$new_header[4],table_seq$prot_seq[4],
+                table_seq$new_header[5],table_seq$prot_seq[5],
+                table_seq$new_header[6],table_seq$prot_seq[6],
+                table_seq$new_header[7],table_seq$prot_seq[7])
+  write.table(vec_result,file=output_prot,quote = FALSE,row.names = FALSE) 
 }
