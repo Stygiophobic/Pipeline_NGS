@@ -40,7 +40,8 @@ k5start -U -f /home/chu-lyon.fr/regueex/login.kt -- nohup singularity exec $sing
             --resources mem_gb=32 \
             --config Result_Repository=$working_repository \
                 Project_folder=$fastq_repository \
-                Samplesheet_Location=$samplefile
+                Samplesheet_Location=$samplefile \
+            --unlock
 
 k5start -U -f /home/chu-lyon.fr/regueex/login.kt -- nohup singularity exec $singularity_img snakemake -s 2_mappingsubype \
             --cores 8 \

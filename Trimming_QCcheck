@@ -31,7 +31,7 @@ rule output_pipeline:
     input:
         R1_trimmed =  expand(result_repository + "FASTQ_TRIMM/{sample}_R1_trimmed.fastq",sample=SAMPLE_LIST) ,
         R2_trimmed =  expand(result_repository + "FASTQ_TRIMM/{sample}_R2_trimmed.fastq",sample=SAMPLE_LIST) ,
-        SAM = expand(result_repository + "SAM/{sample}.sam",sample=SAMPLE_LIST),
+        SAM = expand(result_repository + "SAM/{sample}.sam",sample=SAMPLE_LIST) ,
         count_premapping = expand(result_repository + "COUNT_MAPPING/{sample}_premapping.csv",sample=SAMPLE_LIST) ,
         #REPORT
         fastq_sum =  result_repository + "REPORT/fastq_summary.tsv",
@@ -111,12 +111,10 @@ rule create_index:
         BBMAP = rules.get_BBmap.output.BBMAP,
         HG19 = rules.get_hg19.output.hg19_ref
     output:
-        index = "temp/ref/genome/1/summary.txt"
+        index = directory(result_repository + "TEMP/")
     shell:
         """
-        tool/bbmap/bbsplit.sh  ref=REF_HG19/hg19.fa path=temp/
-        #tool/bbmap/bbmap.sh ref=/srv/nfs/ngs-stockage/NGS_Virologie/HadrienR/PIPELINE_NGS/hg19_main_mask_ribo_animal_allplant_allfungus.fa.gz  \
-        #-Xmx16g -usemodulo=true path=temp/
+        tool/bbmap/bbsplit.sh  ref=REF_HG19/hg19.fa path={output} -Xmx20g -usemodulo=true
         """
 
 #Removing human reads from fastq
@@ -140,7 +138,7 @@ rule clean_fastq:
         """
         {input.BBMAP} in1={input.unzip_fastq_R1} in2={input.unzip_fastq_R2}  \
         basename={rules.clean_fastq.params.path_human}{wildcards.sample}_%.fastq outu1={output.R1_cleaned} outu2={output.R2_cleaned} \
-        path=temp/ -Xmx18000m
+        path={input.index} -Xmx18000m
         """        
 
 rule count_fastq_qc:
@@ -156,20 +154,21 @@ rule count_fastq_qc:
         preqc =  result_repository +  "FASTQ/" ,
         postqc =  result_repository +  "FASTQ_CLEANED/"  ,
         human =  result_repository +  "FASTQ_CLEANED/"    ,  
+        count = result_repository + "TEMP/" 
     shell: 
         """
         #clean
-        wc -l  {params.postqc}*R1_cleaned.fastq | head -n -1 | tr -s ' ' ';' > temp/clean_temp.txt
-        sed 's/^.//' temp/clean_temp.txt > temp/POSTQC_count.txt
-        rm temp/clean_temp.txt
+        wc -l  {params.postqc}*R1_cleaned.fastq | head -n -1 | tr -s ' ' ';' > {params.count}clean_temp.txt
+        sed 's/^.//' {params.count}clean_temp.txt > {params.count}POSTQC_count.txt
+        rm {params.count}clean_temp.txt
         #human
-        wc -l  {params.human}*_hg19.fastq | head -n -1 | tr -s ' ' ';' > temp/human_temp.txt
-        sed 's/^.//' temp/human_temp.txt > temp/HUMAN_count.txt
-        rm temp/human_temp.txt
+        wc -l  {params.human}*_hg19.fastq | head -n -1 | tr -s ' ' ';' > {params.count}human_temp.txt
+        sed 's/^.//' {params.count}human_temp.txt > {params.count}HUMAN_count.txt
+        rm {params.count}human_temp.txt
         #preqc
-        wc -l  {params.preqc}*R1.fastq | head -n -1 | tr -s ' ' ';' > temp/preqc_temp.txt
-        sed 's/^.//' temp/preqc_temp.txt > temp/PREQC_count.txt
-        rm temp/preqc_temp.txt
+        wc -l  {params.preqc}*R1.fastq | head -n -1 | tr -s ' ' ';' > {params.count}preqc_temp.txt
+        sed 's/^.//' {params.count}preqc_temp.txt > {params.count}PREQC_count.txt
+        rm {params.count}preqc_temp.txt
         Rscript script/fastq_summary.R {output}
         """       
      
@@ -234,9 +233,11 @@ rule premapping_count:
         SAM = rules.premapping_align.output.SAM
     output:  
         count_premapping = result_repository + "COUNT_MAPPING/{sample}_premapping.csv"
+    params:
+        count = result_repository + "TEMP/"         
     run:
-        shell("samtools view -S {input} | cut -f 3 | sort | uniq -c | sort -nr | sed -e 's/^ *//;s/ /\t/' | tr '\t' ';'> temp/count_{wildcards.sample}.txt")
-        table=pd.read_csv("temp/count_"+wildcards.sample+".txt",sep=";",names=['COUNT','MAPPING'])  
+        shell("samtools view -S {input} | cut -f 3 | sort | uniq -c | sort -nr | sed -e 's/^ *//;s/ /\t/' | tr '\t' ';'> {params.count}count_{wildcards.sample}.txt")
+        table=pd.read_csv(params.count+"count_"+wildcards.sample+".txt",sep=";",names=['COUNT','MAPPING'])  
         table = table.loc[table['MAPPING'] != "*"]
         result=open(result_repository + "COUNT_MAPPING/"+wildcards.sample+"_premapping.csv",'w')
         #HERE CUTOFF ??????
@@ -253,7 +254,7 @@ rule concatenate_premapping:
     input:
         count_premapping = expand(rules.premapping_count.output.count_premapping,sample=SAMPLE_LIST )  
     output:
-        sum_premapping = result_repository + "MAPPING_RESULT/premapping_result.csv"
+        sum_premapping = result_repository + "REPORT/premapping_result.csv"
     params:
         path_repository = result_repository +  "COUNT_MAPPING/"
     run:   
